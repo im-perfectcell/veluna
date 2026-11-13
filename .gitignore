@@ -1,35 +1,21 @@
-/target
-.mcp.json
+# Gradle & Android build artifacts
+.gradle/
+.kotlin/
+.build-outputs/
+build/
+app/build/
+captures/
+dist/
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# Local machine configuration
+local.properties
+
+# IDE & OS files
 .idea/
-# rustypipe scratch (older builds wrote these into CWD; now redirected to temp)
-rustypipe_cache.json
-rustypipe_reports/
-
-# Windows and Linux local build artifacts — libmpv is fetched or linked locally, never committed.
-/src-tauri/libmpv-2.dll
-/.libmpv/
-/libmpv/
-/.cargo/lib/
-/src-tauri/binaries/
-
-# Local tool state
-/.freebuff/
-
-# Last.fm API credentials — read by src-tauri/build.rs, never committed (public repo).
-/src-tauri/lastfm.keys
-
-# Local design notes & tooling — kept out of the public repo
-/context/
-/progress/
-/ui/perf/
-/spikes/
-/.agents/
-/.claude/
-/CLAUDE.md
-/PHASE1-PROMPT.md
-/RELEASING.md
-/TWEETING.md
-/skills-lock.json
-/plans
-scripts/bench.sh
-scripts/triage.py
+*.iml
+.DS_Store
+Thumbs.db

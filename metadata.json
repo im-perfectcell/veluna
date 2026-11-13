@@ -1,0 +1,8 @@
+{
+  "name": "Veluna",
+  "description": "Music streaming player with synced lyrics, offline library, equalizer, and listening stats",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.network.InnerTubeClient
+import com.example.data.repository.TasteEngine
 import com.example.data.repository.VelunaRepository
 import com.example.model.AlbumPage
 import com.example.model.ArtistPage
@@ -48,7 +49,8 @@ enum class PlaylistSortMode(val label: String) {
 
 class DetailViewModel(
     private val innerTube: InnerTubeClient,
-    private val repository: VelunaRepository
+    private val repository: VelunaRepository,
+    private val tasteEngine: TasteEngine? = null
 ) : ViewModel() {
 
     private val _albumState = MutableStateFlow(AlbumDetailState())
@@ -108,7 +110,9 @@ class DetailViewModel(
     fun toggleFollowArtist(currentlyFollowed: Boolean) {
         val page = _artistState.value.page ?: return
         viewModelScope.launch {
-            repository.setArtistFollowed(page, !currentlyFollowed)
+            val nextFollow = !currentlyFollowed
+            repository.setArtistFollowed(page, nextFollow)
+            tasteEngine?.recordArtistFollow(page.name, page.channelId, nextFollow)
         }
     }
 
@@ -175,10 +179,11 @@ class DetailViewModel(
 
     class Factory(
         private val innerTube: InnerTubeClient,
-        private val repository: VelunaRepository
+        private val repository: VelunaRepository,
+        private val tasteEngine: TasteEngine? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            DetailViewModel(innerTube, repository) as T
+            DetailViewModel(innerTube, repository, tasteEngine) as T
     }
 }

@@ -36,16 +36,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.Rating
+import com.example.playback.PlaybackPositionState
 import com.example.playback.PlaybackUiState
 import com.example.ui.theme.VelunaMotion
+import kotlinx.coroutines.flow.StateFlow
+
+private val VelunaHeartRed = Color(0xFFEF4444)
 
 @Composable
 fun MiniPlayerBar(
     state: PlaybackUiState,
+    positionFlow: StateFlow<PlaybackPositionState>,
+    isLiked: Boolean = state.nowPlaying?.rating == Rating.LIKE,
     onOpenNowPlaying: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
@@ -53,23 +61,13 @@ fun MiniPlayerBar(
     modifier: Modifier = Modifier
 ) {
     val song = state.nowPlaying ?: return
-    val rawProgress = if (state.durationMs > 0) {
-        (state.positionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-
-    val animatedProgress by animateFloatAsState(
-        targetValue = rawProgress,
-        animationSpec = VelunaMotion.snappySpring(),
-        label = "mini_player_progress"
-    )
-    val isLiked = song.rating == Rating.LIKE
     val likeScale by animateFloatAsState(
         targetValue = if (isLiked) 1.15f else 1f,
         animationSpec = VelunaMotion.bouncyScaleSpring(),
         label = "mini_like_scale"
     )
     val likeTint by animateColorAsState(
-        targetValue = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (isLiked) VelunaHeartRed else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = VelunaMotion.snappySpring(),
         label = "mini_like_tint"
     )
@@ -172,14 +170,29 @@ fun MiniPlayerBar(
                     )
                 }
             }
-            LinearProgressIndicator(
-                progress = { animatedProgress },
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-            )
+            MiniProgressBar(positionFlow = positionFlow)
         }
     }
+}
+
+@Composable
+private fun MiniProgressBar(positionFlow: StateFlow<PlaybackPositionState>) {
+    val posState by positionFlow.collectAsStateWithLifecycle()
+    val rawProgress = if (posState.durationMs > 0L) {
+        (posState.positionMs.toFloat() / posState.durationMs.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = VelunaMotion.snappySpring(),
+        label = "mini_player_progress"
+    )
+    LinearProgressIndicator(
+        progress = { animatedProgress },
+        color = MaterialTheme.colorScheme.primary,
+        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(2.dp)
+    )
 }

@@ -272,13 +272,54 @@ data class LyricsData(
     val instrumental: Boolean = false,
     val lines: List<LyricLine> = emptyList(),
     val pinned: Boolean = false,
-    val offsetMs: Long = 0L
+    val offsetMs: Long = 0L,
+    val validatedDurationMs: Long = 0L
 )
 
 data class LyricsProviderInfo(
     val id: String,
     val name: String,
     val enabled: Boolean
+)
+
+@Serializable
+data class TasteSeed(
+    val id: String,
+    val name: String,
+    val subtitle: String? = null,
+    val thumbnail: String? = null
+)
+
+@Serializable
+data class ArtistSignal(
+    val id: String? = null,
+    val name: String,
+    val score: Float = 0f,
+    val plays: Int = 0,
+    val skips: Int = 0,
+    val lastUpdatedMs: Long = 0L
+)
+
+@Serializable
+data class TrackSignal(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val score: Float = 0f,
+    val completions: Int = 0,
+    val skips: Int = 0,
+    val lastUpdatedMs: Long = 0L
+)
+
+@Serializable
+data class TasteProfile(
+    val onboardingCompleted: Boolean = false,
+    val selectedGenres: List<String> = emptyList(),
+    val seedArtists: List<TasteSeed> = emptyList(),
+    val seedSongs: List<TasteSeed> = emptyList(),
+    val artistSignals: Map<String, ArtistSignal> = emptyMap(),
+    val genreWeights: Map<String, Float> = emptyMap(),
+    val trackSignals: Map<String, TrackSignal> = emptyMap()
 )
 
 enum class StatsRange(val label: String, val days: Int?) {

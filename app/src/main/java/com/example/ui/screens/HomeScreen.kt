@@ -67,10 +67,12 @@ fun HomeScreen(
     familiarArtists: List<BrowseItem>,
     nowPlayingSong: SongItem?,
     artworkAccent: Color?,
+    likedIds: Set<String> = emptySet(),
     onSelectChip: (String?) -> Unit,
     onRetry: () -> Unit,
     onOpenBrowseItem: (BrowseItem) -> Unit,
     onTrackMore: (SongItem) -> Unit,
+    onToggleLike: ((SongItem) -> Unit)? = null,
     onOpenHistory: () -> Unit,
     onOpenEditHome: () -> Unit,
     modifier: Modifier = Modifier
@@ -318,9 +320,13 @@ fun HomeScreen(
                 }
             }
 
-            // Remote InnerTube Home Shelves
-            items(homeState.homePage.sections, key = { "${it.title}_${it.items.size}" }) { section ->
-                val isQuickPicks = section.title.contains("quick picks", ignoreCase = true) ||
+            // Remote InnerTube & Personalized Home Shelves
+            itemsIndexed(
+                homeState.homePage.sections,
+                key = { idx, sec -> "${idx}_${sec.kind}_${sec.title}_${sec.items.size}" }
+            ) { _, section ->
+                val isQuickPicks = section.kind == "PERSONALIZED_SONGS" ||
+                    section.title.contains("quick picks", ignoreCase = true) ||
                     (section.items.isNotEmpty() && section.items.all { it.kind == BrowseKind.SONG } && section.items.size <= 16)
 
                 Column(
@@ -352,8 +358,10 @@ fun HomeScreen(
                                 TrackRow(
                                     song = song,
                                     isPlaying = nowPlayingSong?.videoId == song.videoId,
+                                    isLiked = song.videoId in likedIds,
                                     onClick = { onOpenBrowseItem(item) },
-                                    onMoreClick = { onTrackMore(song) }
+                                    onMoreClick = { onTrackMore(song) },
+                                    onLikeClick = onToggleLike?.let { fn -> { fn(song) } }
                                 )
                             }
                         }

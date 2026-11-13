@@ -24,8 +24,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.R
 import com.example.model.LIKED_MUSIC_ID
 import com.example.model.ON_REPEAT_ID
@@ -37,6 +39,7 @@ fun ArtWashBackdrop(
     modifier: Modifier = Modifier,
     useStageFallback: Boolean = true
 ) {
+    val context = LocalContext.current
     val bg = MaterialTheme.colorScheme.background
     val primary = MaterialTheme.colorScheme.primary
     val animatedAccent by animateColorAsState(
@@ -47,13 +50,17 @@ fun ArtWashBackdrop(
     Box(modifier = modifier.background(bg)) {
         if (!artworkUrl.isNullOrBlank()) {
             AsyncImage(
-                model = artworkUrl,
+                model = ImageRequest.Builder(context)
+                    .data(artworkUrl)
+                    .size(128)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
                     .alpha(0.28f)
-                    .blur(48.dpCompat())
+                    .blur(40.dpCompat())
             )
         } else if (useStageFallback) {
             Image(

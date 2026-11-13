@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Equalizer
@@ -68,6 +69,7 @@ import com.example.data.local.UserPrefsRepository
 import com.example.data.local.VelunaUserPrefs
 import com.example.model.AudioQuality
 import com.example.model.LyricsProviderInfo
+import com.example.model.TasteProfile
 import com.example.model.ThemeMode
 import com.example.model.VelunaThemePreset
 import com.example.ui.theme.VelunaMotion
@@ -80,6 +82,8 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     prefs: VelunaUserPrefs,
     blockedArtists: List<BlockedArtistEntity>,
+    tasteProfile: TasteProfile? = null,
+    onOpenTasteOnboarding: () -> Unit = {},
     onSetThemePreset: (VelunaThemePreset) -> Unit,
     onSetThemeMode: (ThemeMode) -> Unit,
     onSetCustomAccent: (String?) -> Unit,
@@ -193,6 +197,29 @@ fun SettingsScreen(
                         ) {
                             Text("Save", maxLines = 1, softWrap = false)
                         }
+                    }
+
+                    val tasteSummary = remember(tasteProfile) {
+                        val g = tasteProfile?.selectedGenres?.size ?: 0
+                        val a = tasteProfile?.seedArtists?.size ?: 0
+                        val s = tasteProfile?.seedSongs?.size ?: 0
+                        if (g + a + s == 0) "Pick favorite genres, artists & songs"
+                        else "$g genres • $a artists • $s songs"
+                    }
+                    OutlinedButton(
+                        onClick = onOpenTasteOnboarding,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("settings_tune_taste_btn")
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Tune Music Taste ($tasteSummary)",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

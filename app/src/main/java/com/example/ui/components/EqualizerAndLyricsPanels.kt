@@ -58,21 +58,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.UserPrefsRepository
 import com.example.model.EqualizerPresets
 import com.example.model.SongItem
+import com.example.playback.PlaybackPositionState
 import com.example.ui.viewmodel.CommentsUiState
 import com.example.ui.viewmodel.LyricsUiState
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.roundToInt
 
 @Composable
 fun SyncedLyricsPanel(
     lyricsState: LyricsUiState,
-    positionMs: Long,
+    positionFlow: StateFlow<PlaybackPositionState>,
     romanizeEnabled: Boolean,
     onToggleRomanize: () -> Unit,
     onSelectProvider: (String) -> Unit,
@@ -148,6 +154,19 @@ fun SyncedLyricsPanel(
                         onClick = { onNudgeOffset(250L) },
                         modifier = Modifier.testTag("lyrics_offset_plus")
                     ) { Text("+0.25s") }
+                } else if (data != null && !data.instrumental && data.lines.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        Text(
+                            text = "Plain lyrics",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
 
                 IconButton(
@@ -191,15 +210,16 @@ fun SyncedLyricsPanel(
                 }
             }
             else -> {
-                val effectivePos = positionMs - data.offsetMs
-                val activeIndex = remember(data.lines, effectivePos) {
+                val positionState by positionFlow.collectAsStateWithLifecycle()
+                val effectivePos = positionState.positionMs - data.offsetMs
+                val activeIndex = remember(data.lines, effectivePos, data.synced) {
                     if (!data.synced) -1
                     else data.lines.indexOfLast { (it.timeMs ?: Long.MAX_VALUE) <= effectivePos }
                 }
                 val listState = rememberLazyListState()
 
-                LaunchedEffect(activeIndex) {
-                    if (activeIndex >= 0) {
+                LaunchedEffect(activeIndex, data.synced) {
+                    if (data.synced && activeIndex >= 0) {
                         runCatching {
                             listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
                         }
@@ -213,34 +233,58 @@ fun SyncedLyricsPanel(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(data.lines) { idx, line ->
-                        val isActive = idx == activeIndex
+                        val isActive = data.synced && idx == activeIndex
                         val isPast = data.synced && idx < activeIndex
+                        val canSeek = data.synced && line.timeMs != null
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(MaterialTheme.shapes.small)
-                                .clickable(enabled = line.timeMs != null) {
+                                .clickable(enabled = canSeek) {
                                     line.timeMs?.let { onSeekToLine((it + data.offsetMs).coerceAtLeast(0L)) }
                                 }
                                 .padding(vertical = 4.dp, horizontal = 6.dp)
                                 .alpha(
                                     when {
-                                        !data.synced -> 0.92f
+                                        !data.synced -> 0.94f
                                         isActive -> 1f
                                         isPast -> 0.45f
                                         else -> 0.65f
                                     }
                                 )
                         ) {
-                            Text(
-                                text = line.text,
-                                style = if (isActive) {
-                                    MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                                } else {
-                                    MaterialTheme.typography.titleLarge
-                                },
-                                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
+                            if (isActive && line.words.isNotEmpty()) {
+                                val primaryColor = MaterialTheme.colorScheme.primary
+                                val upcomingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                                val annotated = buildAnnotatedString {
+                                    line.words.forEachIndexed { wIdx, w ->
+                                        if (wIdx > 0) append(" ")
+                                        val reached = effectivePos >= w.startMs
+                                        withStyle(
+                                            SpanStyle(
+                                                color = if (reached) primaryColor else upcomingColor,
+                                                fontWeight = if (reached) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        ) {
+                                            append(w.text)
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = annotated,
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
+                            } else {
+                                Text(
+                                    text = line.text,
+                                    style = if (isActive) {
+                                        MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                                    } else {
+                                        MaterialTheme.typography.titleLarge
+                                    },
+                                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                             if (romanizeEnabled && !line.romanized.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(

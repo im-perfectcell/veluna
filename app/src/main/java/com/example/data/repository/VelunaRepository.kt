@@ -39,6 +39,8 @@ import com.example.model.TopSongStat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -133,6 +135,10 @@ class VelunaRepository(
     val likedSongsFlow: Flow<List<SongItem>> = dao.observeLikedSongs().map { list ->
         list.mapNotNull { decodeSong(it.songJson)?.copy(rating = com.example.model.Rating.LIKE) }
     }
+
+    val likedVideoIdsFlow: Flow<Set<String>> = dao.observeLikedVideoIds()
+        .map { it.toHashSet() }
+        .distinctUntilChanged()
 
     val savedAlbumsFlow: Flow<List<BrowseItem>> = dao.observeSavedAlbums().map { list ->
         list.map {
@@ -671,8 +677,16 @@ class VelunaRepository(
     }
 
     fun observeHistoryGroups(): Flow<List<HistoryGroup>> = combine(
-        dao.observeAllListens(),
-        dao.observeListenSongs()
+        dao.observeAllListens().distinctUntilChanged { old, new ->
+            old.size == new.size &&
+                old.firstOrNull()?.id == new.firstOrNull()?.id &&
+                old.lastOrNull()?.id == new.lastOrNull()?.id
+        },
+        dao.observeListenSongs().distinctUntilChanged { old, new ->
+            old.size == new.size &&
+                old.firstOrNull()?.videoId == new.firstOrNull()?.videoId &&
+                old.lastOrNull()?.videoId == new.lastOrNull()?.videoId
+        }
     ) { listens, songs ->
         val map = songs.mapNotNull { row -> decodeSong(row.songJson)?.let { row.videoId to it } }.toMap()
         val zone = ZoneId.systemDefault()
@@ -692,7 +706,7 @@ class VelunaRepository(
             grouped.getOrPut(title) { mutableListOf() }.add(l.playedAt to song)
         }
         grouped.entries.map { HistoryGroup(it.key, it.value) }
-    }
+    }.flowOn(Dispatchers.Default)
 
     private fun computeStreaks(listens: List<ListenEntity>, zone: ZoneId): Pair<Int, Int> {
         if (listens.isEmpty()) return 0 to 0

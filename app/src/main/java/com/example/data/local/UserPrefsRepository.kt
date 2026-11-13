@@ -12,9 +12,11 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.model.AudioQuality
 import com.example.model.EqualizerPresets
 import com.example.model.LyricsProviderInfo
+import com.example.model.TasteProfile
 import com.example.model.ThemeMode
 import com.example.model.VelunaThemePreset
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -84,6 +86,8 @@ class UserPrefsRepository(private val context: Context) {
         val SHOW_MOOD_CHIPS = booleanPreferencesKey("show_mood_chips")
         val SHOW_HERO_BACKDROP = booleanPreferencesKey("show_hero_backdrop")
         val DISPLAY_NAME = stringPreferencesKey("display_name")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val TASTE_PROFILE_JSON = stringPreferencesKey("taste_profile_json")
     }
 
     val prefsFlow: Flow<VelunaUserPrefs> = context.velunaPrefsDataStore.data.map { p ->
@@ -129,6 +133,39 @@ class UserPrefsRepository(private val context: Context) {
             showHeroArtworkBackdrop = p[Keys.SHOW_HERO_BACKDROP] ?: true,
             userDisplayName = p[Keys.DISPLAY_NAME] ?: "Listener"
         )
+    }
+
+    val tasteProfileFlow: Flow<TasteProfile> = context.velunaPrefsDataStore.data
+        .map { p ->
+            val raw = p[Keys.TASTE_PROFILE_JSON]
+            val parsed = if (!raw.isNullOrBlank()) {
+                runCatching { json.decodeFromString<TasteProfile>(raw) }.getOrNull()
+            } else null
+            val completed = p[Keys.ONBOARDING_COMPLETED] ?: parsed?.onboardingCompleted ?: false
+            (parsed ?: TasteProfile()).copy(onboardingCompleted = completed)
+        }
+        .distinctUntilChanged()
+
+    suspend fun saveTasteProfile(profile: TasteProfile) {
+        context.velunaPrefsDataStore.edit { p ->
+            p[Keys.ONBOARDING_COMPLETED] = profile.onboardingCompleted
+            p[Keys.TASTE_PROFILE_JSON] = json.encodeToString(profile)
+        }
+    }
+
+    suspend fun updateTasteProfile(transform: (TasteProfile) -> TasteProfile) {
+        context.velunaPrefsDataStore.edit { p ->
+            val raw = p[Keys.TASTE_PROFILE_JSON]
+            val current = (if (!raw.isNullOrBlank()) runCatching { json.decodeFromString<TasteProfile>(raw) }.getOrNull() else null)
+                ?: TasteProfile(onboardingCompleted = p[Keys.ONBOARDING_COMPLETED] ?: false)
+            val updated = transform(current)
+            p[Keys.ONBOARDING_COMPLETED] = updated.onboardingCompleted
+            p[Keys.TASTE_PROFILE_JSON] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        updateTasteProfile { it.copy(onboardingCompleted = completed) }
     }
 
     suspend fun setThemePreset(preset: VelunaThemePreset) {

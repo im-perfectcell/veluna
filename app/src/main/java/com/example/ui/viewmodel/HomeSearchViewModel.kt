@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.UserPrefsRepository
 import com.example.data.network.InnerTubeClient
+import com.example.data.repository.TasteEngine
 import com.example.data.repository.VelunaRepository
 import com.example.model.BrowseItem
 import com.example.model.BrowseKind
@@ -14,6 +15,8 @@ import com.example.model.MoodTile
 import com.example.model.SearchResults
 import com.example.model.SearchSuggestions
 import com.example.model.SongItem
+import com.example.model.TasteProfile
+import com.example.model.TasteSeed
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,10 +47,18 @@ data class SearchUiState(
     val selectedCategoryTab: Int = 0
 )
 
+data class OnboardingSearchUiState(
+    val query: String = "",
+    val isSearching: Boolean = false,
+    val artists: List<BrowseItem> = emptyList(),
+    val songs: List<BrowseItem> = emptyList()
+)
+
 class HomeSearchViewModel(
     private val innerTube: InnerTubeClient,
     private val repository: VelunaRepository,
-    private val prefsRepo: UserPrefsRepository
+    private val prefsRepo: UserPrefsRepository,
+    private val tasteEngine: TasteEngine? = null
 ) : ViewModel() {
 
     private val _homeState = MutableStateFlow(HomeUiState())
@@ -55,6 +66,13 @@ class HomeSearchViewModel(
 
     private val _searchState = MutableStateFlow(SearchUiState())
     val searchState: StateFlow<SearchUiState> = _searchState.asStateFlow()
+
+    private val _onboardingSearch = MutableStateFlow(OnboardingSearchUiState())
+    val onboardingSearch: StateFlow<OnboardingSearchUiState> = _onboardingSearch.asStateFlow()
+
+    // Initial null avoids flashing onboarding before DataStore loads from disk
+    val tasteProfile: StateFlow<TasteProfile?> = prefsRepo.tasteProfileFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val shortcuts: StateFlow<List<BrowseItem>> = repository.shortcutsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -114,6 +132,7 @@ class HomeSearchViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var suggestJob: Job? = null
+    private var onboardingSearchJob: Job? = null
 
     init {
         loadHome(null)
@@ -125,22 +144,42 @@ class HomeSearchViewModel(
             _homeState.update {
                 it.copy(isLoading = true, error = null, selectedChipParams = params, moodsTitle = null)
             }
-            innerTube.getHome(params).onSuccess { page ->
+            innerTube.getHome(params).onSuccess { remotePage ->
+                val personalized = runCatching {
+                    tasteEngine?.personalizeHomePage(remotePage, isFilteredChipOrMood = !params.isNullOrBlank())
+                }.getOrNull() ?: remotePage
+
                 _homeState.update {
                     it.copy(
                         isLoading = false,
-                        homePage = page.copy(
-                            chips = page.chips.ifEmpty { InnerTubeClient.fallbackDiscoveryHome().chips }
+                        homePage = personalized.copy(
+                            chips = personalized.chips.ifEmpty { InnerTubeClient.fallbackDiscoveryHome().chips }
                         ),
                         error = null
                     )
                 }
             }.onFailure { err ->
-                _homeState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = err.message ?: "Unable to reach YouTube Music"
-                    )
+                // Even if FEmusic_home fails temporarily, try building personalized shelves from seeds
+                val seedFallback = runCatching {
+                    tasteEngine?.personalizeHomePage(InnerTubeClient.fallbackDiscoveryHome(), isFilteredChipOrMood = false)
+                }.getOrNull()
+                if (seedFallback != null && seedFallback.sections.isNotEmpty()) {
+                    _homeState.update {
+                        it.copy(
+                            isLoading = false,
+                            homePage = seedFallback.copy(
+                                chips = seedFallback.chips.ifEmpty { InnerTubeClient.fallbackDiscoveryHome().chips }
+                            ),
+                            error = null
+                        )
+                    }
+                } else {
+                    _homeState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = err.message ?: "Unable to reach YouTube Music"
+                        )
+                    }
                 }
             }
         }
@@ -165,6 +204,65 @@ class HomeSearchViewModel(
             }.onFailure {
                 _searchState.update { it.copy(isMoodsLoading = false) }
             }
+        }
+    }
+
+    fun onOnboardingQueryChange(q: String) {
+        _onboardingSearch.update { it.copy(query = q) }
+        onboardingSearchJob?.cancel()
+        val trimmed = q.trim()
+        if (trimmed.length < 2) {
+            _onboardingSearch.update { it.copy(isSearching = false, artists = emptyList(), songs = emptyList()) }
+            return
+        }
+        onboardingSearchJob = viewModelScope.launch {
+            delay(260L)
+            _onboardingSearch.update { it.copy(isSearching = true) }
+            innerTube.searchAll(trimmed).onSuccess { res ->
+                val foundArtists = (res.artists + res.top.filter { it.kind == BrowseKind.ARTIST })
+                    .distinctBy { it.id }
+                    .take(10)
+                val foundSongs = (res.songs + res.top.filter { it.kind == BrowseKind.SONG })
+                    .distinctBy { it.id }
+                    .take(12)
+                _onboardingSearch.update {
+                    it.copy(
+                        isSearching = false,
+                        artists = foundArtists,
+                        songs = foundSongs
+                    )
+                }
+            }.onFailure {
+                _onboardingSearch.update { it.copy(isSearching = false) }
+            }
+        }
+    }
+
+    fun saveOnboardingTaste(
+        genres: List<String>,
+        artists: List<TasteSeed>,
+        songs: List<TasteSeed>,
+        onFinished: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            if (tasteEngine != null) {
+                tasteEngine.applyOnboardingSeeds(genres, artists, songs)
+            } else {
+                prefsRepo.setOnboardingCompleted(true)
+            }
+            loadHome(null)
+            onFinished()
+        }
+    }
+
+    fun skipOnboarding(onFinished: () -> Unit = {}) {
+        viewModelScope.launch {
+            if (tasteEngine != null) {
+                tasteEngine.skipOnboarding()
+            } else {
+                prefsRepo.setOnboardingCompleted(true)
+            }
+            onFinished()
         }
     }
 
@@ -233,10 +331,11 @@ class HomeSearchViewModel(
     class Factory(
         private val innerTube: InnerTubeClient,
         private val repository: VelunaRepository,
-        private val prefsRepo: UserPrefsRepository
+        private val prefsRepo: UserPrefsRepository,
+        private val tasteEngine: TasteEngine? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            HomeSearchViewModel(innerTube, repository, prefsRepo) as T
+            HomeSearchViewModel(innerTube, repository, prefsRepo, tasteEngine) as T
     }
 }

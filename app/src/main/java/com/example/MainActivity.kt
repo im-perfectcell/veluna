@@ -108,6 +108,7 @@ import com.example.ui.screens.PlaylistDetailScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StatsScreen
+import com.example.ui.screens.TasteOnboardingScreen
 import com.example.ui.theme.VelunaMotion
 import com.example.ui.theme.VelunaTheme
 import com.example.ui.viewmodel.DetailViewModel
@@ -181,13 +182,15 @@ fun VelunaApp(
         factory = HomeSearchViewModel.Factory(
             container.innerTubeClient,
             container.repository,
-            container.prefsRepository
+            container.prefsRepository,
+            container.tasteEngine
         )
     )
     val detailVm: DetailViewModel = viewModel(
         factory = DetailViewModel.Factory(
             container.innerTubeClient,
-            container.repository
+            container.repository,
+            container.tasteEngine
         )
     )
     val nowPlayingVm: NowPlayingViewModel = viewModel(
@@ -201,7 +204,8 @@ fun VelunaApp(
     val libraryStatsVm: LibraryStatsViewModel = viewModel(
         factory = LibraryStatsViewModel.Factory(
             container.repository,
-            container.prefsRepository
+            container.prefsRepository,
+            container.tasteEngine
         )
     )
 
@@ -211,6 +215,9 @@ fun VelunaApp(
     val downloadedTracks by libraryStatsVm.downloadedTracks.collectAsStateWithLifecycle()
     val playlists by libraryStatsVm.playlists.collectAsStateWithLifecycle()
     val statusBanner by libraryStatsVm.statusBanner.collectAsStateWithLifecycle()
+    val likedIds by libraryStatsVm.likedVideoIds.collectAsStateWithLifecycle()
+    val tasteProfile by homeSearchVm.tasteProfile.collectAsStateWithLifecycle()
+    val onboardingSearch by homeSearchVm.onboardingSearch.collectAsStateWithLifecycle()
 
     val downloadedIds = remember(downloadedTracks) {
         downloadedTracks.map { it.videoId }.toHashSet()
@@ -251,6 +258,12 @@ fun VelunaApp(
             }
         }
 
+        LaunchedEffect(container.playerController) {
+            container.playerController.events.collect { msg ->
+                snackbarHostState.showSnackbar(msg)
+            }
+        }
+
         // Modal dialog states
         var menuTrack by remember { mutableStateOf<SongItem?>(null) }
         var addToPlaylistTrack by remember { mutableStateOf<SongItem?>(null) }
@@ -259,6 +272,7 @@ fun VelunaApp(
         var showSleepTimer by remember { mutableStateOf(false) }
         var showEqualizer by remember { mutableStateOf(false) }
         var showEditHome by remember { mutableStateOf(false) }
+        var showTasteEditor by remember { mutableStateOf(false) }
 
         fun playTracks(tracks: List<SongItem>, index: Int, source: String) {
             ensureNotificationPermission()
@@ -337,6 +351,8 @@ fun VelunaApp(
                             ) {
                                 MiniPlayerBar(
                                     state = playbackState,
+                                    positionFlow = container.playerController.positionState,
+                                    isLiked = playbackState.nowPlaying?.videoId in likedIds,
                                     onOpenNowPlaying = { container.playerController.openNowPlaying(true) },
                                     onTogglePlayPause = { container.playerController.togglePlayPause() },
                                     onSkipNext = { container.playerController.skipNext() },
@@ -368,6 +384,8 @@ fun VelunaApp(
                             ) {
                                 MiniPlayerBar(
                                     state = playbackState,
+                                    positionFlow = container.playerController.positionState,
+                                    isLiked = playbackState.nowPlaying?.videoId in likedIds,
                                     onOpenNowPlaying = { container.playerController.openNowPlaying(true) },
                                     onTogglePlayPause = { container.playerController.togglePlayPause() },
                                     onSkipNext = { container.playerController.skipNext() },
@@ -444,10 +462,12 @@ fun VelunaApp(
                                 familiarArtists = familiarArtists,
                                 nowPlayingSong = playbackState.nowPlaying,
                                 artworkAccent = playbackState.artworkAccentColor,
+                                likedIds = likedIds,
                                 onSelectChip = homeSearchVm::loadHome,
                                 onRetry = { homeSearchVm.loadHome(homeState.selectedChipParams) },
                                 onOpenBrowseItem = ::openBrowseItem,
                                 onTrackMore = { menuTrack = it },
+                                onToggleLike = { container.playerController.toggleLike(it) },
                                 onOpenHistory = { navController.navigate(HistoryRoute) },
                                 onOpenEditHome = { showEditHome = true }
                             )
@@ -494,7 +514,7 @@ fun VelunaApp(
                                 onOpenBrowseItem = ::openBrowseItem,
                                 onPlaySongs = ::playTracks,
                                 onTrackMore = { menuTrack = it },
-                                onToggleLike = libraryStatsVm::toggleLike,
+                                onToggleLike = { container.playerController.toggleLike(it) },
                                 onOpenCreatePlaylist = { showCreatePlaylist = true },
                                 onOpenImportPlaylist = {
                                     libraryStatsVm.resetImportState()
@@ -529,6 +549,8 @@ fun VelunaApp(
                             SettingsScreen(
                                 prefs = prefs,
                                 blockedArtists = blockedArtists,
+                                tasteProfile = tasteProfile,
+                                onOpenTasteOnboarding = { showTasteEditor = true },
                                 onSetThemePreset = libraryStatsVm::setThemePreset,
                                 onSetThemeMode = libraryStatsVm::setThemeMode,
                                 onSetCustomAccent = libraryStatsVm::setCustomAccent,
@@ -651,6 +673,8 @@ fun VelunaApp(
 
                 NowPlayingOverlay(
                     playbackState = playbackState,
+                    positionFlow = container.playerController.positionState,
+                    isLiked = curSong?.videoId in likedIds,
                     prefs = prefs,
                     lyricsState = lyricsState,
                     commentsState = commentsState,
@@ -694,12 +718,48 @@ fun VelunaApp(
                 )
             }
 
+            // Full-Screen Taste Onboarding / Re-tuning Overlay
+            val showOnboardingOverlay = (tasteProfile != null && tasteProfile?.onboardingCompleted == false) || showTasteEditor
+            AnimatedVisibility(
+                visible = showOnboardingOverlay,
+                enter = slideInVertically(
+                    animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                    initialOffsetY = { it / 2 }
+                ) + fadeIn(VelunaMotion.fastFade()),
+                exit = slideOutVertically(
+                    animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                    targetOffsetY = { it / 2 }
+                ) + fadeOut(VelunaMotion.fastFade())
+            ) {
+                TasteOnboardingScreen(
+                    initialProfile = tasteProfile,
+                    searchState = onboardingSearch,
+                    canNavigateBack = tasteProfile?.onboardingCompleted == true,
+                    onQueryChange = homeSearchVm::onOnboardingQueryChange,
+                    onSave = { genres, artists, songs ->
+                        homeSearchVm.saveOnboardingTaste(genres, artists, songs) {
+                            showTasteEditor = false
+                        }
+                    },
+                    onSkip = {
+                        if (tasteProfile?.onboardingCompleted == true) {
+                            showTasteEditor = false
+                        } else {
+                            homeSearchVm.skipOnboarding {
+                                showTasteEditor = false
+                            }
+                        }
+                    }
+                )
+            }
+
             // --- Shared Dialogs & Sheets ---
             menuTrack?.let { song ->
                 val isDl = song.videoId in downloadedIds
                 TrackMenuSheet(
                     song = song,
                     isDownloaded = isDl,
+                    isLiked = song.videoId in likedIds,
                     onDismiss = { menuTrack = null },
                     onPlayNext = { container.playerController.playNext(song) },
                     onAddToQueue = { container.playerController.addToQueue(song) },
@@ -707,7 +767,7 @@ fun VelunaApp(
                         ensureNotificationPermission()
                         container.playerController.startRadio(song)
                     },
-                    onToggleLike = { libraryStatsVm.toggleLike(song) },
+                    onToggleLike = { container.playerController.toggleLike(song) },
                     onAddToPlaylist = { addToPlaylistTrack = song },
                     onToggleDownload = {
                         if (isDl) container.playerController.deleteDownload(song.videoId)

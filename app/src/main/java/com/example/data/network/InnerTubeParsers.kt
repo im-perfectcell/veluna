@@ -428,9 +428,21 @@ object InnerTubeParsers {
     }
 
     fun parseNext(root: JsonElement): Pair<List<SongItem>, String?> {
-        val songs = findAll(root, "playlistPanelVideoRenderer").mapNotNull { panelEl ->
+        val rawRenderers = buildList {
+            addAll(findAll(root, "playlistPanelVideoRenderer"))
+            findAll(root, "playlistPanelVideoWrapperRenderer").forEach { wrapper ->
+                val obj = wrapper.objOrNull() ?: return@forEach
+                obj["primaryRenderer"]?.objOrNull()?.get("playlistPanelVideoRenderer")?.let { add(it) }
+                (obj["counterpart"] as? JsonArray)?.forEach { cp ->
+                    cp.objOrNull()?.get("counterpartRenderer")?.objOrNull()?.get("playlistPanelVideoRenderer")?.let { add(it) }
+                }
+            }
+        }
+        val seenIds = hashSetOf<String>()
+        val songs = rawRenderers.mapNotNull { panelEl ->
             val p = panelEl.objOrNull() ?: return@mapNotNull null
             val videoId = p["videoId"].strOrNull() ?: return@mapNotNull null
+            if (!seenIds.add(videoId)) return@mapNotNull null
             val title = runsText(p["title"]) ?: return@mapNotNull null
             val runs = p["longBylineText"]?.objOrNull()?.get("runs").arrOrNull()
                 ?: p["shortBylineText"]?.objOrNull()?.get("runs").arrOrNull()

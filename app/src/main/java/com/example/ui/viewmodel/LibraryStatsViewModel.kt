@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.BlockedArtistEntity
 import com.example.data.local.UserPrefsRepository
 import com.example.data.local.VelunaUserPrefs
+import com.example.data.repository.TasteEngine
 import com.example.data.repository.VelunaRepository
 import com.example.model.AudioQuality
 import com.example.model.BrowseItem
@@ -41,7 +42,8 @@ data class ImportDialogState(
 
 class LibraryStatsViewModel(
     private val repository: VelunaRepository,
-    private val prefsRepo: UserPrefsRepository
+    private val prefsRepo: UserPrefsRepository,
+    private val tasteEngine: TasteEngine? = null
 ) : ViewModel() {
 
     val prefs: StateFlow<VelunaUserPrefs> = prefsRepo.prefsFlow
@@ -52,6 +54,9 @@ class LibraryStatsViewModel(
 
     val likedSongs: StateFlow<List<SongItem>> = repository.likedSongsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val likedVideoIds: StateFlow<Set<String>> = repository.likedVideoIdsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val savedAlbums: StateFlow<List<BrowseItem>> = repository.savedAlbumsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -115,12 +120,18 @@ class LibraryStatsViewModel(
     fun addTrackToPlaylist(playlistId: Long, song: SongItem) {
         viewModelScope.launch {
             val added = repository.addTrackToPlaylist(playlistId, song)
+            if (added) {
+                tasteEngine?.recordLikeChange(song, liked = true)
+            }
             _statusBanner.value = if (added) "Added to playlist" else "Track already in playlist"
         }
     }
 
     fun toggleLike(song: SongItem) {
-        viewModelScope.launch { repository.toggleLike(song) }
+        viewModelScope.launch {
+            val liked = repository.toggleLike(song)
+            tasteEngine?.recordLikeChange(song, liked)
+        }
     }
 
     fun blockArtist(name: String, channelId: String? = null) {
@@ -263,10 +274,11 @@ class LibraryStatsViewModel(
 
     class Factory(
         private val repository: VelunaRepository,
-        private val prefsRepo: UserPrefsRepository
+        private val prefsRepo: UserPrefsRepository,
+        private val tasteEngine: TasteEngine? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            LibraryStatsViewModel(repository, prefsRepo) as T
+            LibraryStatsViewModel(repository, prefsRepo, tasteEngine) as T
     }
 }

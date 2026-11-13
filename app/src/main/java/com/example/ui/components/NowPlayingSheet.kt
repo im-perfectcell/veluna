@@ -76,22 +76,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.VelunaUserPrefs
 import com.example.model.Rating
 import com.example.model.RepeatMode
 import com.example.model.SongItem
+import com.example.playback.PlaybackPositionState
 import com.example.playback.PlaybackUiState
 import com.example.ui.theme.VelunaMotion
 import com.example.ui.viewmodel.CommentsUiState
 import com.example.ui.viewmodel.LyricsUiState
+import kotlinx.coroutines.flow.StateFlow
+
+private val VelunaHeartRed = Color(0xFFEF4444)
 
 @Composable
 fun NowPlayingOverlay(
     playbackState: PlaybackUiState,
+    positionFlow: StateFlow<PlaybackPositionState>,
+    isLiked: Boolean = playbackState.nowPlaying?.rating == Rating.LIKE,
     prefs: VelunaUserPrefs,
     lyricsState: LyricsUiState,
     commentsState: CommentsUiState,
@@ -209,6 +217,8 @@ fun NowPlayingOverlay(
                         PlayerDeck(
                             song = song,
                             playbackState = playbackState,
+                            positionFlow = positionFlow,
+                            isLiked = isLiked,
                             isDownloaded = isDownloaded,
                             onTogglePlayPause = onTogglePlayPause,
                             onSeekTo = onSeekTo,
@@ -256,7 +266,7 @@ fun NowPlayingOverlay(
                                         )
                                         1 -> SyncedLyricsPanel(
                                             lyricsState = lyricsState,
-                                            positionMs = playbackState.positionMs,
+                                            positionFlow = positionFlow,
                                             romanizeEnabled = prefs.romanizeLyrics,
                                             onToggleRomanize = onToggleRomanize,
                                             onSelectProvider = onSelectLyricsProvider,
@@ -284,6 +294,8 @@ fun NowPlayingOverlay(
                                     0 -> PlayerDeck(
                                         song = song,
                                         playbackState = playbackState,
+                                        positionFlow = positionFlow,
+                                        isLiked = isLiked,
                                         isDownloaded = isDownloaded,
                                         onTogglePlayPause = onTogglePlayPause,
                                         onSeekTo = onSeekTo,
@@ -312,7 +324,7 @@ fun NowPlayingOverlay(
                                     )
                                     2 -> SyncedLyricsPanel(
                                         lyricsState = lyricsState,
-                                        positionMs = playbackState.positionMs,
+                                        positionFlow = positionFlow,
                                         romanizeEnabled = prefs.romanizeLyrics,
                                         onToggleRomanize = onToggleRomanize,
                                         onSelectProvider = onSelectLyricsProvider,
@@ -374,6 +386,8 @@ fun NowPlayingOverlay(
 private fun PlayerDeck(
     song: SongItem,
     playbackState: PlaybackUiState,
+    positionFlow: StateFlow<PlaybackPositionState>,
+    isLiked: Boolean,
     isDownloaded: Boolean,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -391,19 +405,14 @@ private fun PlayerDeck(
     modifier: Modifier = Modifier
 ) {
     var speedMenuOpen by remember { mutableStateOf(false) }
-    var draggingSlider by remember { mutableStateOf(false) }
-    var dragPosMs by remember { mutableFloatStateOf(0f) }
 
-    val duration = playbackState.durationMs.coerceAtLeast(1L)
-    val sliderPos = if (draggingSlider) dragPosMs else playbackState.positionMs.toFloat().coerceIn(0f, duration.toFloat())
-    val isLiked = song.rating == Rating.LIKE
     val likeScale by animateFloatAsState(
         targetValue = if (isLiked) 1.18f else 1f,
         animationSpec = VelunaMotion.bouncyScaleSpring(),
         label = "deck_like_scale"
     )
     val likeTint by animateColorAsState(
-        targetValue = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (isLiked) VelunaHeartRed else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = VelunaMotion.snappySpring(),
         label = "deck_like_tint"
     )
@@ -495,33 +504,10 @@ private fun PlayerDeck(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Slider(
-                value = sliderPos,
-                onValueChange = {
-                    draggingSlider = true
-                    dragPosMs = it
-                },
-                onValueChangeFinished = {
-                    draggingSlider = false
-                    onSeekTo(dragPosMs.toLong())
-                },
-                valueRange = 0f..duration.toFloat(),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("now_playing_seek_slider")
+            TrackSeekBar(
+                positionFlow = positionFlow,
+                onSeekTo = onSeekTo
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(formatMs(sliderPos.toLong()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(formatMs(playbackState.durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -681,6 +667,49 @@ private fun PlayerDeck(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TrackSeekBar(
+    positionFlow: StateFlow<PlaybackPositionState>,
+    onSeekTo: (Long) -> Unit
+) {
+    val posState by positionFlow.collectAsStateWithLifecycle()
+    var draggingSlider by remember { mutableStateOf(false) }
+    var dragPosMs by remember { mutableFloatStateOf(0f) }
+
+    val duration = posState.durationMs.coerceAtLeast(1L)
+    val sliderPos = if (draggingSlider) dragPosMs else posState.positionMs.toFloat().coerceIn(0f, duration.toFloat())
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Slider(
+            value = sliderPos,
+            onValueChange = {
+                draggingSlider = true
+                dragPosMs = it
+            },
+            onValueChangeFinished = {
+                draggingSlider = false
+                onSeekTo(dragPosMs.toLong())
+            },
+            valueRange = 0f..duration.toFloat(),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("now_playing_seek_slider")
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(formatMs(sliderPos.toLong()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatMs(posState.durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

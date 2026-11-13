@@ -66,18 +66,47 @@ class NowPlayingViewModel(
                     }
                 }
         }
+        // Re-validate synced lyrics once ExoPlayer resolves exact track duration
+        viewModelScope.launch {
+            playerController.positionState
+                .map { it.durationMs }
+                .distinctUntilChanged()
+                .collect { durMs ->
+                    if (durMs >= 30_000L) {
+                        val cur = _lyricsState.value
+                        val data = cur.data
+                        val vid = cur.videoId
+                        if (data != null && vid != null && data.synced && data.validatedDurationMs != durMs) {
+                            val revalidated = lyricsRepo.revalidateAgainstDuration(vid, data, durMs)
+                            if (revalidated != data) {
+                                _lyricsState.update { st ->
+                                    if (st.videoId == vid) st.copy(data = revalidated) else st
+                                }
+                            }
+                        }
+                    }
+                }
+        }
     }
 
     fun loadLyrics(song: SongItem, forceProviderId: String? = null) {
         viewModelScope.launch {
             _lyricsState.value = LyricsUiState(isLoading = true, videoId = song.videoId)
-            val result = lyricsRepo.getLyrics(song, prefs.value.lyricsProviderOrder, forceProviderId)
+            val durMs = playerController.positionState.value.durationMs.takeIf { it > 0L }
+                ?: (song.durationSeconds * 1000L)
+            val result = lyricsRepo.getLyrics(
+                song = song,
+                providerOrderRaw = prefs.value.lyricsProviderOrder,
+                forceProviderId = forceProviderId,
+                trackDurationMs = durMs
+            )
             _lyricsState.value = LyricsUiState(isLoading = false, data = result, videoId = song.videoId)
         }
     }
 
     fun nudgeLyricsOffset(deltaMs: Long) {
         val current = _lyricsState.value.data ?: return
+        if (!current.synced) return
         val vid = _lyricsState.value.videoId ?: return
         val newOffset = (current.offsetMs + deltaMs).coerceIn(-10_000L, 10_000L)
         viewModelScope.launch {
@@ -92,7 +121,9 @@ class NowPlayingViewModel(
         val song = playerController.state.value.nowPlaying ?: return
         viewModelScope.launch {
             _lyricsState.update { it.copy(isLoading = true) }
-            val result = lyricsRepo.clearPinnedSource(song, prefs.value.lyricsProviderOrder)
+            val durMs = playerController.positionState.value.durationMs.takeIf { it > 0L }
+                ?: (song.durationSeconds * 1000L)
+            val result = lyricsRepo.clearPinnedSource(song, prefs.value.lyricsProviderOrder, durMs)
             _lyricsState.value = LyricsUiState(isLoading = false, data = result, videoId = song.videoId)
         }
     }

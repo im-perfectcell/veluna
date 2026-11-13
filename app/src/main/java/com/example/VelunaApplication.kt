@@ -6,6 +6,7 @@ import com.example.data.local.VelunaDatabase
 import com.example.data.network.InnerTubeClient
 import com.example.data.network.LyricsRepository
 import com.example.data.network.ScrobbleClient
+import com.example.data.repository.TasteEngine
 import com.example.data.repository.VelunaRepository
 import com.example.playback.PlayerController
 
@@ -16,6 +17,11 @@ class VelunaAppContainer(application: Application) {
     val innerTubeClient: InnerTubeClient = InnerTubeClient()
     val lyricsRepository: LyricsRepository = LyricsRepository(dao, innerTubeClient)
     val scrobbleClient: ScrobbleClient = ScrobbleClient(innerTubeClient.httpClient)
+    val tasteEngine: TasteEngine = TasteEngine(
+        dao = dao,
+        prefsRepo = prefsRepository,
+        innerTube = innerTubeClient
+    )
     val repository: VelunaRepository = VelunaRepository(
         context = application,
         dao = dao,
@@ -28,7 +34,8 @@ class VelunaAppContainer(application: Application) {
         repository = repository,
         prefsRepo = prefsRepository,
         innerTube = innerTubeClient,
-        scrobbleClient = scrobbleClient
+        scrobbleClient = scrobbleClient,
+        tasteEngine = tasteEngine
     )
 }
 

@@ -2,10 +2,10 @@ package com.example.playback
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
@@ -28,6 +28,7 @@ import com.example.data.local.VelunaDao
 import com.example.data.local.VelunaUserPrefs
 import com.example.data.network.InnerTubeClient
 import com.example.data.network.ScrobbleClient
+import com.example.data.repository.TasteEngine
 import com.example.data.repository.VelunaRepository
 import com.example.model.DownloadProgress
 import com.example.model.DownloadStatus
@@ -41,8 +42,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -52,6 +56,7 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 
+@Immutable
 data class PlaybackUiState(
     val queue: List<SongItem> = emptyList(),
     val currentIndex: Int = -1,
@@ -59,8 +64,6 @@ data class PlaybackUiState(
     val sourceName: String? = null,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
     val shuffle: Boolean = false,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val speed: Float = 1.0f,
@@ -71,21 +74,34 @@ data class PlaybackUiState(
     val nowPlayingOpen: Boolean = false
 )
 
+@Immutable
+data class PlaybackPositionState(
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L
+)
+
 class PlayerController(
     private val context: Context,
     private val dao: VelunaDao,
     private val repository: VelunaRepository,
     private val prefsRepo: UserPrefsRepository,
     private val innerTube: InnerTubeClient,
-    private val scrobbleClient: ScrobbleClient
+    private val scrobbleClient: ScrobbleClient,
+    private val tasteEngine: TasteEngine? = null
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
 
+    private val _positionState = MutableStateFlow(PlaybackPositionState())
+    val positionState: StateFlow<PlaybackPositionState> = _positionState.asStateFlow()
+
     private val _downloads = MutableStateFlow<Map<String, DownloadProgress>>(emptyMap())
     val downloads: StateFlow<Map<String, DownloadProgress>> = _downloads.asStateFlow()
+
+    private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val events: SharedFlow<String> = _events.asSharedFlow()
 
     private var currentPrefs = VelunaUserPrefs()
     private var mediaController: MediaController? = null
@@ -94,6 +110,7 @@ class PlayerController(
     private var currentTrackStartedAtSecs: Long = 0L
     private var scrobbledCurrentTrack = false
     private var heardSecondsThisTrack = 0L
+    private var pendingFlushSecs = 0L
 
     private var activeCandidates: List<ResolvedStream> = emptyList()
     private var activeCandidateIndex: Int = -1
@@ -103,6 +120,9 @@ class PlayerController(
     private var tickerJob: Job? = null
     private var sleepJob: Job? = null
     private var resolveJob: Job? = null
+    private var prefetchJob: Job? = null
+    private var autoplayJob: Job? = null
+    private var radioJob: Job? = null
     private val imageLoader = ImageLoader(context)
 
     init {
@@ -113,6 +133,21 @@ class PlayerController(
                 VelunaPlaybackService.instance?.applyEqualizerState(prefs.eqEnabled, prefs.eqBandsDb)
                 mediaController?.playbackParameters = PlaybackParameters(prefs.playbackSpeed)
                 _state.update { it.copy(speed = prefs.playbackSpeed) }
+            }
+        }
+        scope.launch {
+            repository.likedVideoIdsFlow.collect { likedIds ->
+                _state.update { st ->
+                    val updatedNow = st.nowPlaying?.let { np ->
+                        val desired = if (np.videoId in likedIds) Rating.LIKE else Rating.INDIFFERENT
+                        if (np.rating != desired) np.copy(rating = desired) else np
+                    }
+                    val updatedQueue = st.queue.map { item ->
+                        val desired = if (item.videoId in likedIds) Rating.LIKE else Rating.INDIFFERENT
+                        if (item.rating != desired) item.copy(rating = desired) else item
+                    }
+                    st.copy(nowPlaying = updatedNow, queue = updatedQueue)
+                }
             }
         }
         connectService()
@@ -139,12 +174,24 @@ class PlayerController(
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.update { it.copy(isPlaying = isPlaying) }
+            if (!isPlaying) {
+                flushListenSeconds()
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             val buffering = playbackState == Player.STATE_BUFFERING
             _state.update { it.copy(isBuffering = buffering) }
-            if (playbackState == Player.STATE_ENDED) {
+            if (playbackState == Player.STATE_READY) {
+                val ctrl = mediaController
+                if (ctrl != null) {
+                    val dur = ctrl.duration.takeIf { it > 0 } ?: 0L
+                    if (dur > 0L && _positionState.value.durationMs != dur) {
+                        _positionState.update { it.copy(durationMs = dur) }
+                    }
+                }
+            } else if (playbackState == Player.STATE_ENDED) {
+                flushListenSeconds()
                 onTrackEnded()
             }
         }
@@ -152,6 +199,7 @@ class PlayerController(
         override fun onPlayerError(error: PlaybackException) {
             val song = currentCandidateSong
             if (song != null && !song.isLocal) {
+                innerTube.invalidateStreamCache(song.videoId)
                 val nextIdx = activeCandidateIndex + 1
                 if (nextIdx in activeCandidates.indices) {
                     scope.launch {
@@ -194,10 +242,13 @@ class PlayerController(
             var subTick = 0
             while (true) {
                 val ctrl = mediaController
-                if (ctrl != null) {
+                if (ctrl != null && (ctrl.isPlaying || _state.value.nowPlayingOpen || _state.value.isBuffering)) {
                     val pos = ctrl.currentPosition.coerceAtLeast(0L)
-                    val dur = ctrl.duration.takeIf { it > 0 } ?: 0L
-                    _state.update { it.copy(positionMs = pos, durationMs = dur) }
+                    val dur = ctrl.duration.takeIf { it > 0 } ?: _positionState.value.durationMs
+                    val curPosState = _positionState.value
+                    if (curPosState.positionMs != pos || curPosState.durationMs != dur) {
+                        _positionState.value = PlaybackPositionState(positionMs = pos, durationMs = dur)
+                    }
 
                     if (ctrl.isPlaying) {
                         subTick++
@@ -215,15 +266,36 @@ class PlayerController(
     private fun recordOneSecondHeard() {
         val song = _state.value.nowPlaying ?: return
         heardSecondsThisTrack++
-        val lid = currentListenId
-        scope.launch(Dispatchers.IO) {
-            if (lid != null) {
-                dao.addListenSeconds(lid, 1L)
-            }
-            if (!scrobbledCurrentTrack && heardSecondsThisTrack >= 30L) {
-                scrobbledCurrentTrack = true
+        pendingFlushSecs++
+        if (pendingFlushSecs >= 15L) {
+            flushListenSeconds()
+        }
+        if (!scrobbledCurrentTrack && heardSecondsThisTrack >= 30L) {
+            scrobbledCurrentTrack = true
+            scope.launch(Dispatchers.IO) {
                 scrobbleClient.submitScrobble(song, currentTrackStartedAtSecs, currentPrefs)
             }
+        }
+    }
+
+    private fun flushListenSeconds() {
+        val lid = currentListenId ?: return
+        val delta = pendingFlushSecs
+        if (delta <= 0L) return
+        pendingFlushSecs = 0L
+        scope.launch(Dispatchers.IO) {
+            dao.addListenSeconds(lid, delta)
+        }
+    }
+
+    private fun finalizeCurrentTrackOutcome() {
+        flushListenSeconds()
+        val prevSong = _state.value.nowPlaying ?: return
+        val heard = heardSecondsThisTrack
+        if (heard <= 0L) return
+        val durSecs = (_positionState.value.durationMs / 1000L).takeIf { it > 0L } ?: prevSong.durationSeconds
+        scope.launch {
+            tasteEngine?.recordPlaybackOutcome(prevSong, heard, durSecs)
         }
     }
 
@@ -269,6 +341,7 @@ class PlayerController(
             add(insertAt, song.copy(queued = true))
         }
         _state.update { it.copy(queue = updated) }
+        _events.tryEmit("Playing next: ${song.title}")
     }
 
     fun addToQueue(song: SongItem) {
@@ -279,6 +352,7 @@ class PlayerController(
         }
         val updated = cur.queue + song.copy(queuedEnd = true)
         _state.update { it.copy(queue = updated) }
+        _events.tryEmit("Added to queue: ${song.title}")
     }
 
     fun removeFromQueue(index: Int) {
@@ -295,8 +369,10 @@ class PlayerController(
         if (index == cur.currentIndex && newIdx >= 0) {
             playIndex(newIdx)
         } else if (updated.isEmpty()) {
+            finalizeCurrentTrackOutcome()
             mediaController?.stop()
             _state.update { it.copy(nowPlaying = null, isPlaying = false) }
+            _positionState.value = PlaybackPositionState()
         }
     }
 
@@ -308,17 +384,24 @@ class PlayerController(
         } else {
             mediaController?.stop()
             _state.update { it.copy(queue = emptyList(), currentIndex = -1, nowPlaying = null) }
+            _positionState.value = PlaybackPositionState()
         }
     }
 
     fun togglePlayPause() {
         val ctrl = mediaController ?: return
-        if (ctrl.isPlaying) ctrl.pause() else ctrl.play()
+        if (ctrl.isPlaying) {
+            flushListenSeconds()
+            ctrl.pause()
+        } else {
+            ctrl.play()
+        }
     }
 
     fun seekTo(positionMs: Long) {
-        mediaController?.seekTo(positionMs.coerceAtLeast(0L))
-        _state.update { it.copy(positionMs = positionMs.coerceAtLeast(0L)) }
+        val clamped = positionMs.coerceAtLeast(0L)
+        mediaController?.seekTo(clamped)
+        _positionState.update { it.copy(positionMs = clamped) }
     }
 
     fun skipNext() {
@@ -335,15 +418,17 @@ class PlayerController(
             playIndex(nextIdx)
         } else if (cur.repeatMode == RepeatMode.ALL && cur.queue.isNotEmpty()) {
             playIndex(0)
+        } else if (currentPrefs.autoplay && cur.nowPlaying != null && !cur.nowPlaying.isLocal) {
+            fetchAutoplayContinuation(cur.nowPlaying, playImmediately = true)
         }
     }
 
     fun skipPrevious() {
-        val cur = _state.value
-        if (cur.positionMs > 4000L) {
+        if (_positionState.value.positionMs > 4000L) {
             seekTo(0L)
             return
         }
+        val cur = _state.value
         val prevIdx = cur.currentIndex - 1
         if (prevIdx in cur.queue.indices) {
             playIndex(prevIdx)
@@ -393,15 +478,25 @@ class PlayerController(
 
     fun toggleLikeCurrent() {
         val song = _state.value.nowPlaying ?: return
+        toggleLike(song)
+    }
+
+    fun toggleLike(song: SongItem) {
         scope.launch {
             val liked = repository.toggleLike(song)
             val newRating = if (liked) Rating.LIKE else Rating.INDIFFERENT
             _state.update { st ->
+                val updatedNow = if (st.nowPlaying?.videoId == song.videoId) {
+                    st.nowPlaying.copy(rating = newRating)
+                } else {
+                    st.nowPlaying
+                }
                 st.copy(
-                    nowPlaying = st.nowPlaying?.copy(rating = newRating),
+                    nowPlaying = updatedNow,
                     queue = st.queue.map { if (it.videoId == song.videoId) it.copy(rating = newRating) else it }
                 )
             }
+            tasteEngine?.recordLikeChange(song, liked)
         }
     }
 
@@ -425,21 +520,80 @@ class PlayerController(
     }
 
     fun startRadio(song: SongItem) {
-        scope.launch {
-            val radio = innerTube.getNext(song.videoId).getOrNull().orEmpty()
-            val list = (listOf(song) + radio.filter { it.videoId != song.videoId })
-            playQueue(list, 0, "${song.title} Radio")
+        if (song.isLocal) return
+        radioJob?.cancel()
+        val cur = _state.value
+        val alreadyPlayingThisSong = cur.nowPlaying?.videoId == song.videoId && cur.currentIndex in cur.queue.indices
+
+        if (!alreadyPlayingThisSong) {
+            // Start playing the seed track immediately without blocking on the radio mix network call
+            playQueue(listOf(song), 0, "${song.title} Radio")
+        } else {
+            _state.update { it.copy(sourceName = "${song.title} Radio") }
+        }
+
+        radioJob = scope.launch {
+            val radioTracks = if (tasteEngine != null) {
+                tasteEngine.generateSmartAutoplayTracks(
+                    seed = song,
+                    existingQueueIds = setOf(song.videoId),
+                    limit = 25
+                )
+            } else {
+                innerTube.getNext(song.videoId, playlistId = "RDAMVM${song.videoId}").getOrNull().orEmpty()
+                    .filter { it.videoId != song.videoId }
+                    .distinctBy { it.videoId }
+                    .take(25)
+                    .map { it.copy(autoplay = true) }
+            }
+
+            val finalTracks = if (radioTracks.isNotEmpty()) {
+                radioTracks
+            } else {
+                val artistLead = song.artists.substringBefore(",").trim()
+                innerTube.searchSongs("$artistLead ${song.title}".trim()).getOrNull().orEmpty()
+                    .filter { it.videoId != song.videoId }
+                    .distinctBy { it.videoId }
+                    .take(20)
+                    .map { it.copy(autoplay = true) }
+            }
+
+            if (finalTracks.isNotEmpty()) {
+                _state.update { st ->
+                    val currentIdx = st.currentIndex
+                    val keepPrefix = if (currentIdx in st.queue.indices) {
+                        st.queue.subList(0, currentIdx + 1).toList()
+                    } else {
+                        listOf(song)
+                    }
+                    val prefixIds = keepPrefix.map { it.videoId }.toHashSet()
+                    val filteredRadio = finalTracks.filter { it.videoId !in prefixIds }
+                    st.copy(
+                        queue = keepPrefix + filteredRadio,
+                        currentIndex = if (currentIdx >= 0) currentIdx else 0,
+                        sourceName = "${song.title} Radio"
+                    )
+                }
+                _events.tryEmit("Queued ${finalTracks.size} radio songs")
+                prefetchNextInQueue()
+            } else {
+                _events.tryEmit("Could not find radio tracks right now")
+            }
         }
     }
 
     fun playIndex(index: Int) {
         val cur = _state.value
         val song = cur.queue.getOrNull(index) ?: return
+        if (cur.nowPlaying != null) {
+            finalizeCurrentTrackOutcome()
+        }
         resolveJob?.cancel()
+        prefetchJob?.cancel()
 
         resolveJob = scope.launch {
-            val isLiked = repository.isLiked(song.videoId)
-            val hydratedSong = song.copy(rating = if (isLiked) Rating.LIKE else song.rating)
+            val isLiked = withContext(Dispatchers.IO) { repository.isLiked(song.videoId) }
+            val hydratedSong = song.copy(rating = if (isLiked) Rating.LIKE else Rating.INDIFFERENT)
 
             activeCandidates = emptyList()
             activeCandidateIndex = -1
@@ -451,10 +605,13 @@ class PlayerController(
                     currentIndex = index,
                     nowPlaying = hydratedSong,
                     isBuffering = true,
-                    positionMs = 0L,
                     errorMessage = null
                 )
             }
+            _positionState.value = PlaybackPositionState(
+                positionMs = 0L,
+                durationMs = hydratedSong.durationSeconds * 1000L
+            )
 
             extractArtworkAccent(hydratedSong.thumbnail)
             recordListenStart(hydratedSong)
@@ -462,6 +619,7 @@ class PlayerController(
             // 1) Local audio file
             if (hydratedSong.isLocal && hydratedSong.localUri != null) {
                 playUri(Uri.parse(hydratedSong.localUri), hydratedSong, "Local File", null, null)
+                prefetchNextInQueue()
                 return@launch
             }
 
@@ -469,14 +627,16 @@ class PlayerController(
             val downloaded = withContext(Dispatchers.IO) { dao.getDownload(hydratedSong.videoId) }
             if (downloaded != null && File(downloaded.filePath).exists()) {
                 playUri(Uri.fromFile(File(downloaded.filePath)), hydratedSong, "Offline", null, null)
+                prefetchNextInQueue()
                 return@launch
             }
 
-            // 3) Resolve prioritized stream candidates via InnerTube + HLS + Fallback mirrors
+            // 3) Resolve prioritized stream candidates via Hedged InnerTube + Parallel Mirror Race
             val resolved = innerTube.resolveStreamCandidates(hydratedSong.videoId, currentPrefs.audioQuality)
             resolved.onSuccess { list ->
                 activeCandidates = list
                 tryCandidateStream(hydratedSong, 0)
+                prefetchNextInQueue()
             }.onFailure { err ->
                 _state.update {
                     it.copy(
@@ -489,6 +649,18 @@ class PlayerController(
 
             if (currentPrefs.autoplay && index >= _state.value.queue.lastIndex - 1 && !hydratedSong.isLocal) {
                 fetchAutoplayContinuation(hydratedSong)
+            }
+        }
+    }
+
+    private fun prefetchNextInQueue() {
+        val nextSong = _state.value.queue.getOrNull(_state.value.currentIndex + 1) ?: return
+        if (nextSong.isLocal) return
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch(Dispatchers.IO) {
+            delay(900L)
+            runCatching {
+                innerTube.resolveStreamCandidates(nextSong.videoId, currentPrefs.audioQuality)
             }
         }
     }
@@ -543,6 +715,7 @@ class PlayerController(
 
     private fun recordListenStart(song: SongItem) {
         heardSecondsThisTrack = 0L
+        pendingFlushSecs = 0L
         scrobbledCurrentTrack = false
         val nowMs = System.currentTimeMillis()
         currentTrackStartedAtSecs = nowMs / 1000L
@@ -556,16 +729,24 @@ class PlayerController(
     }
 
     private fun fetchAutoplayContinuation(seed: SongItem, playImmediately: Boolean = false) {
-        scope.launch {
-            val nextSongs = innerTube.getNext(seed.videoId).getOrNull().orEmpty()
+        if (autoplayJob?.isActive == true && !playImmediately) return
+        autoplayJob?.cancel()
+        autoplayJob = scope.launch {
             val existingIds = _state.value.queue.map { it.videoId }.toHashSet()
-            val fresh = nextSongs.filter { it.videoId !in existingIds }
-                .map { it.copy(autoplay = true) }
+            val fresh = if (tasteEngine != null) {
+                tasteEngine.generateSmartAutoplayTracks(seed, existingIds, limit = 16)
+            } else {
+                innerTube.getNext(seed.videoId, playlistId = "RDAMVM${seed.videoId}").getOrNull().orEmpty()
+                    .filter { it.videoId !in existingIds }
+                    .map { it.copy(autoplay = true) }
+            }
             if (fresh.isNotEmpty()) {
                 val startNextIdx = _state.value.queue.size
                 _state.update { it.copy(queue = it.queue + fresh) }
                 if (playImmediately) {
                     playIndex(startNextIdx)
+                } else {
+                    prefetchNextInQueue()
                 }
             }
         }
@@ -591,7 +772,7 @@ class PlayerController(
             val req = ImageRequest.Builder(context)
                 .data(url)
                 .allowHardware(false)
-                .size(160)
+                .size(120)
                 .build()
             val res = imageLoader.execute(req)
             ((res as? SuccessResult)?.drawable as? BitmapDrawable)?.bitmap

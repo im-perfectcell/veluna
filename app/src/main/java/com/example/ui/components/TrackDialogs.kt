@@ -38,6 +38,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -55,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +73,7 @@ import com.example.ui.viewmodel.ImportDialogState
 fun TrackMenuSheet(
     song: SongItem,
     isDownloaded: Boolean,
+    isLiked: Boolean = song.rating == Rating.LIKE,
     onDismiss: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -119,9 +122,10 @@ fun TrackMenuSheet(
                 }
             }
             MenuActionRow(
-                icon = if (song.rating == Rating.LIKE) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                label = if (song.rating == Rating.LIKE) "Remove from Liked" else "Add to Liked Music",
-                tag = "menu_toggle_like"
+                icon = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                label = if (isLiked) "Remove from Liked" else "Add to Liked Music",
+                tag = "menu_toggle_like",
+                iconTint = if (isLiked) Color(0xFFEF4444) else LocalContentColor.current
             ) {
                 onToggleLike(); onDismiss()
             }
@@ -165,11 +169,12 @@ private fun MenuActionRow(
     icon: ImageVector,
     label: String,
     tag: String,
+    iconTint: Color = LocalContentColor.current,
     onClick: () -> Unit
 ) {
     ListItem(
         headlineContent = { Text(label) },
-        leadingContent = { Icon(icon, contentDescription = null) },
+        leadingContent = { Icon(icon, contentDescription = null, tint = iconTint) },
         modifier = Modifier
             .clickable(onClick = onClick)
             .testTag(tag)

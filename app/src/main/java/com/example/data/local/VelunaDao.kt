@@ -99,6 +99,9 @@ interface VelunaDao {
     @Query("SELECT * FROM liked_songs ORDER BY likedAt DESC")
     fun observeLikedSongs(): Flow<List<LikedSongEntity>>
 
+    @Query("SELECT videoId FROM liked_songs")
+    fun observeLikedVideoIds(): Flow<List<String>>
+
     @Query("SELECT * FROM liked_songs ORDER BY likedAt DESC")
     suspend fun getLikedSongsOnce(): List<LikedSongEntity>
 

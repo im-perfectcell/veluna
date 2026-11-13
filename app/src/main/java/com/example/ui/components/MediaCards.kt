@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -253,6 +254,7 @@ fun TrackRow(
     song: SongItem,
     isPlaying: Boolean = false,
     isDownloaded: Boolean = false,
+    isLiked: Boolean = song.rating == Rating.LIKE,
     trackNumber: Int? = null,
     onClick: () -> Unit,
     onMoreClick: () -> Unit,
@@ -268,7 +270,6 @@ fun TrackRow(
         animationSpec = VelunaMotion.snappySpring(),
         label = "track_row_bg"
     )
-    val isLiked = song.rating == Rating.LIKE
     val likeScale by animateFloatAsState(
         targetValue = if (isLiked) 1.15f else 1f,
         animationSpec = VelunaMotion.bouncyScaleSpring(),
@@ -367,7 +368,7 @@ fun TrackRow(
                 Icon(
                     imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     contentDescription = if (isLiked) "Unlike" else "Like",
-                    tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isLiked) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.scale(likeScale)
                 )
             }

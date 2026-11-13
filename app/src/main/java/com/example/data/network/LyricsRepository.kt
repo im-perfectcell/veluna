@@ -19,7 +19,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
@@ -29,20 +28,37 @@ class LyricsRepository(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val http = innerTube.httpClient.newBuilder()
-        .callTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(7, TimeUnit.SECONDS)
+        .callTimeout(8, TimeUnit.SECONDS)
         .build()
 
     suspend fun getLyrics(
         song: SongItem,
         providerOrderRaw: String,
-        forceProviderId: String? = null
+        forceProviderId: String? = null,
+        trackDurationMs: Long = song.durationSeconds * 1000L
     ): LyricsData? = withContext(Dispatchers.IO) {
+        val effectiveDurationMs = trackDurationMs.takeIf { it > 0L } ?: (song.durationSeconds * 1000L)
+
         if (forceProviderId == null) {
             val cached = dao.getLyricsCache(song.videoId)
             if (cached != null) {
                 val parsed = runCatching { json.decodeFromString<LyricsData>(cached.lyricsJson) }.getOrNull()
                 if (parsed != null) {
-                    return@withContext enrichRomanization(parsed.copy(offsetMs = cached.offsetMs, pinned = cached.pinned))
+                    val validated = LyricsTimingValidator.validateAndNormalize(
+                        parsed.copy(offsetMs = cached.offsetMs, pinned = cached.pinned),
+                        effectiveDurationMs
+                    )
+                    if (validated.synced != parsed.synced) {
+                        dao.upsertLyricsCache(
+                            cached.copy(
+                                lyricsJson = json.encodeToString(validated),
+                                offsetMs = validated.offsetMs
+                            )
+                        )
+                    }
+                    return@withContext enrichRomanization(validated)
                 }
             }
         }
@@ -57,9 +73,10 @@ class LyricsRepository(
 
         var plainFallback: LyricsData? = null
         for (pid in providers) {
-            val result = runCatching { fetchFromProvider(pid, song) }.getOrNull() ?: continue
-            if (result.synced && result.lines.isNotEmpty()) {
-                val enriched = enrichRomanization(result)
+            val rawResult = runCatching { fetchFromProvider(pid, song) }.getOrNull() ?: continue
+            val validated = LyricsTimingValidator.validateAndNormalize(rawResult, effectiveDurationMs)
+            if (validated.synced && validated.lines.isNotEmpty()) {
+                val enriched = enrichRomanization(validated)
                 dao.upsertLyricsCache(
                     LyricsCacheEntity(
                         videoId = song.videoId,
@@ -69,8 +86,8 @@ class LyricsRepository(
                     )
                 )
                 return@withContext enriched
-            } else if (plainFallback == null && result.lines.isNotEmpty()) {
-                plainFallback = result
+            } else if (plainFallback == null && (validated.lines.isNotEmpty() || validated.instrumental)) {
+                plainFallback = validated
             }
         }
 
@@ -89,9 +106,30 @@ class LyricsRepository(
         null
     }
 
+    suspend fun revalidateAgainstDuration(
+        videoId: String,
+        current: LyricsData,
+        actualDurationMs: Long
+    ): LyricsData = withContext(Dispatchers.IO) {
+        if (!current.synced || actualDurationMs <= 0L) return@withContext current
+        val validated = LyricsTimingValidator.validateAndNormalize(current, actualDurationMs)
+        if (validated.synced != current.synced) {
+            dao.getLyricsCache(videoId)?.let { cached ->
+                dao.upsertLyricsCache(
+                    cached.copy(
+                        lyricsJson = json.encodeToString(validated),
+                        offsetMs = 0L
+                    )
+                )
+            }
+        }
+        validated
+    }
+
     suspend fun updateOffset(videoId: String, offsetMs: Long): LyricsData? = withContext(Dispatchers.IO) {
         val cached = dao.getLyricsCache(videoId) ?: return@withContext null
         val parsed = runCatching { json.decodeFromString<LyricsData>(cached.lyricsJson) }.getOrNull() ?: return@withContext null
+        if (!parsed.synced) return@withContext parsed
         val updated = parsed.copy(offsetMs = offsetMs, pinned = true)
         dao.upsertLyricsCache(
             cached.copy(
@@ -103,9 +141,13 @@ class LyricsRepository(
         updated
     }
 
-    suspend fun clearPinnedSource(song: SongItem, providerOrderRaw: String): LyricsData? = withContext(Dispatchers.IO) {
+    suspend fun clearPinnedSource(
+        song: SongItem,
+        providerOrderRaw: String,
+        trackDurationMs: Long = song.durationSeconds * 1000L
+    ): LyricsData? = withContext(Dispatchers.IO) {
         dao.clearUnpinnedLyricsCache()
-        getLyrics(song, providerOrderRaw, forceProviderId = null)
+        getLyrics(song, providerOrderRaw, forceProviderId = null, trackDurationMs = trackDurationMs)
     }
 
     private suspend fun fetchFromProvider(providerId: String, song: SongItem): LyricsData? {
@@ -133,8 +175,8 @@ class LyricsRepository(
             .addQueryParameter("q", "${song.title} ${song.artists.split(",").firstOrNull().orEmpty()}")
             .build().toString()
         val arr = executeJson(searchUrl) as? JsonArray ?: return null
-        val first = arr.firstOrNull()
-        return parseLrcLibObject(first)
+        val best = LyricsTimingValidator.pickBestLrcLibCandidate(arr, song) ?: return null
+        return parseLrcLibObject(best)
     }
 
     private fun parseLrcLibObject(el: kotlinx.serialization.json.JsonElement?): LyricsData? {

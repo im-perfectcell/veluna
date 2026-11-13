@@ -1,7 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -55,6 +54,7 @@ import com.example.ui.components.MediaSquareCard
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.ShortcutTile
 import com.example.ui.components.TrackRow
+import com.example.ui.theme.VelunaMotion
 import com.example.ui.viewmodel.HomeUiState
 import java.time.LocalTime
 
@@ -99,7 +99,7 @@ fun HomeScreen(
         }
 
         LazyColumn(
-            contentPadding = PaddingValues(bottom = 110.dp),
+            contentPadding = PaddingValues(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier
                 .fillMaxSize()
@@ -127,7 +127,7 @@ fun HomeScreen(
                                 .clip(CircleShape)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = homeState.moodsTitle ?: greeting,
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -138,7 +138,9 @@ fun HomeScreen(
                             Text(
                                 text = if (homeState.moodsTitle != null) "Mood & Genre Mix" else "Veluna Music",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -175,7 +177,7 @@ fun HomeScreen(
                             FilterChip(
                                 selected = homeState.selectedChipParams == null && homeState.moodsTitle == null,
                                 onClick = { onSelectChip(null) },
-                                label = { Text("All") },
+                                label = { Text("All", maxLines = 1, softWrap = false) },
                                 modifier = Modifier.testTag("home_chip_all")
                             )
                         }
@@ -186,7 +188,7 @@ fun HomeScreen(
                                     if (chip.params.isNotBlank()) onSelectChip(chip.params)
                                     else onSelectChip(null)
                                 },
-                                label = { Text(chip.title) },
+                                label = { Text(chip.title, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.testTag("home_chip_${chip.title.lowercase().replace(' ', '_')}")
                             )
                         }
@@ -197,7 +199,7 @@ fun HomeScreen(
             // Shortcuts Grid
             if (shortcuts.isNotEmpty()) {
                 item {
-                    Column {
+                    Column(modifier = Modifier.animateContentSize(VelunaMotion.expressiveSpatialSpring())) {
                         SectionHeading(title = "Shortcuts")
                         val chunked = shortcuts.take(6).chunked(2)
                         Column(
@@ -309,7 +311,7 @@ fun HomeScreen(
                             ) {
                                 Icon(Icons.Rounded.Refresh, contentDescription = null)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Retry")
+                                Text("Retry", maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -321,7 +323,12 @@ fun HomeScreen(
                 val isQuickPicks = section.title.contains("quick picks", ignoreCase = true) ||
                     (section.items.isNotEmpty() && section.items.all { it.kind == BrowseKind.SONG } && section.items.size <= 16)
 
-                Column {
+                Column(
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = VelunaMotion.fastFade(),
+                        placementSpec = VelunaMotion.expressiveIntOffsetSpring()
+                    )
+                ) {
                     SectionHeading(
                         title = section.title,
                         actionLabel = if (!section.moreBrowseId.isNullOrBlank()) "Open" else null,

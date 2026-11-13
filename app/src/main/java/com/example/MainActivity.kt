@@ -12,18 +12,26 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Home
@@ -100,6 +108,7 @@ import com.example.ui.screens.PlaylistDetailScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StatsScreen
+import com.example.ui.theme.VelunaMotion
 import com.example.ui.theme.VelunaTheme
 import com.example.ui.viewmodel.DetailViewModel
 import com.example.ui.viewmodel.HomeSearchViewModel
@@ -111,6 +120,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        enableMaxRefreshRate()
         val container = (application as VelunaApplication).container
 
         setContent {
@@ -119,6 +129,43 @@ class MainActivity : ComponentActivity() {
                 container = container,
                 useNavigationRail = widthSizeClass != WindowWidthSizeClass.Compact
             )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        enableMaxRefreshRate()
+    }
+
+    private fun enableMaxRefreshRate() {
+        runCatching {
+            val activeDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay
+            } ?: return
+
+            val currentMode = activeDisplay.mode
+            val sameResModes = activeDisplay.supportedModes.filter {
+                it.physicalWidth == currentMode.physicalWidth &&
+                    it.physicalHeight == currentMode.physicalHeight
+            }
+            val bestMode = (sameResModes.ifEmpty { activeDisplay.supportedModes.toList() })
+                .maxByOrNull { it.refreshRate } ?: currentMode
+
+            val attrs = window.attributes
+            attrs.preferredDisplayModeId = bestMode.modeId
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                attrs.preferredRefreshRate = bestMode.refreshRate
+            }
+            window.attributes = attrs
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                window.frameRateBoostOnTouchEnabled = true
+                window.isFrameRatePowerSavingsBalanced = false
+                window.decorView.requestedFrameRate = bestMode.refreshRate
+            }
         }
     }
 }
@@ -169,7 +216,6 @@ fun VelunaApp(
         downloadedTracks.map { it.videoId }.toHashSet()
     }
 
-    // Request notification permission once on Android 13+ when playback begins
     var requestedNotificationPerm by remember { mutableStateOf(false) }
     val notificationPermLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -271,16 +317,24 @@ fun VelunaApp(
 
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
-                contentWindowInsets = WindowInsets.safeDrawing,
+                contentWindowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Horizontal + WindowInsetsSides.Top
+                ),
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 bottomBar = {
                     if (!useNavigationRail) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                        ) {
-                            if (playbackState.nowPlaying != null) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            AnimatedVisibility(
+                                visible = playbackState.nowPlaying != null,
+                                enter = slideInVertically(
+                                    animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                    initialOffsetY = { it / 2 }
+                                ) + fadeIn(VelunaMotion.fastFade()),
+                                exit = slideOutVertically(
+                                    animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                    targetOffsetY = { it / 2 }
+                                ) + fadeOut(VelunaMotion.fastFade())
+                            ) {
                                 MiniPlayerBar(
                                     state = playbackState,
                                     onOpenNowPlaying = { container.playerController.openNowPlaying(true) },
@@ -294,20 +348,32 @@ fun VelunaApp(
                                 onSelectTab = ::navigateTopTab
                             )
                         }
-                    } else if (playbackState.nowPlaying != null) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                    } else {
+                        AnimatedVisibility(
+                            visible = playbackState.nowPlaying != null,
+                            enter = slideInVertically(
+                                animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                initialOffsetY = { it }
+                            ) + fadeIn(VelunaMotion.fastFade()),
+                            exit = slideOutVertically(
+                                animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                targetOffsetY = { it }
+                            ) + fadeOut(VelunaMotion.fastFade())
                         ) {
-                            MiniPlayerBar(
-                                state = playbackState,
-                                onOpenNowPlaying = { container.playerController.openNowPlaying(true) },
-                                onTogglePlayPause = { container.playerController.togglePlayPause() },
-                                onSkipNext = { container.playerController.skipNext() },
-                                onToggleLike = { container.playerController.toggleLikeCurrent() }
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                            ) {
+                                MiniPlayerBar(
+                                    state = playbackState,
+                                    onOpenNowPlaying = { container.playerController.openNowPlaying(true) },
+                                    onTogglePlayPause = { container.playerController.togglePlayPause() },
+                                    onSkipNext = { container.playerController.skipNext() },
+                                    onToggleLike = { container.playerController.toggleLikeCurrent() }
+                                )
+                            }
                         }
                     }
                 }
@@ -321,13 +387,45 @@ fun VelunaApp(
                         VelunaNavRail(
                             selectedTab = selectedTopTab,
                             onSelectTab = ::navigateTopTab,
-                            modifier = Modifier.fillMaxHeight()
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .statusBarsPadding()
                         )
                     }
 
                     NavHost(
                         navController = navController,
                         startDestination = HomeRoute,
+                        enterTransition = {
+                            slideInHorizontally(
+                                animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                initialOffsetX = { (it * 0.08f).toInt() }
+                            ) + scaleIn(
+                                animationSpec = VelunaMotion.snappySpring(),
+                                initialScale = 0.985f
+                            ) + fadeIn(VelunaMotion.fastFade())
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(
+                                animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                targetOffsetX = { -(it * 0.05f).toInt() }
+                            ) + fadeOut(VelunaMotion.fastFade())
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(
+                                animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                initialOffsetX = { -(it * 0.08f).toInt() }
+                            ) + fadeIn(VelunaMotion.fastFade())
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(
+                                animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                targetOffsetX = { (it * 0.08f).toInt() }
+                            ) + scaleOut(
+                                animationSpec = VelunaMotion.snappySpring(),
+                                targetScale = 0.98f
+                            ) + fadeOut(VelunaMotion.fastFade())
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -534,11 +632,17 @@ fun VelunaApp(
                 }
             }
 
-            // Full-Screen Immersive Now Playing Overlay
+            // Full-Screen Immersive Now Playing Overlay with expressive spring sheet reveal
             AnimatedVisibility(
                 visible = playbackState.nowPlayingOpen && playbackState.nowPlaying != null,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                enter = slideInVertically(
+                    animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                    initialOffsetY = { it }
+                ) + fadeIn(VelunaMotion.fastFade()),
+                exit = slideOutVertically(
+                    animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                    targetOffsetY = { it }
+                ) + fadeOut(VelunaMotion.fastFade())
             ) {
                 val lyricsState by nowPlayingVm.lyricsState.collectAsStateWithLifecycle()
                 val commentsState by nowPlayingVm.commentsState.collectAsStateWithLifecycle()
@@ -713,7 +817,7 @@ private fun VelunaBottomNavBar(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
                 icon = { Icon(icon, contentDescription = tab.label) },
-                label = { Text(tab.label, maxLines = 1) },
+                label = { Text(tab.label, maxLines = 1, softWrap = false) },
                 modifier = Modifier.testTag("nav_item_${tab.name.lowercase()}")
             )
         }
@@ -737,7 +841,7 @@ private fun VelunaNavRail(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
                 icon = { Icon(icon, contentDescription = tab.label) },
-                label = { Text(tab.label) },
+                label = { Text(tab.label, maxLines = 1, softWrap = false) },
                 modifier = Modifier.testTag("rail_item_${tab.name.lowercase()}")
             )
         }

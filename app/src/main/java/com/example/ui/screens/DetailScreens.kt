@@ -8,12 +8,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -60,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.model.BrowseItem
@@ -72,11 +76,13 @@ import com.example.ui.components.MediaSquareCard
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
+import com.example.ui.theme.VelunaMotion
 import com.example.ui.viewmodel.AlbumDetailState
 import com.example.ui.viewmodel.ArtistDetailState
 import com.example.ui.viewmodel.PlaylistDetailState
 import com.example.ui.viewmodel.PlaylistSortMode
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlbumDetailScreen(
     state: AlbumDetailState,
@@ -103,7 +109,7 @@ fun AlbumDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(340.dp)
                 )
                 LazyColumn(
-                    contentPadding = PaddingValues(bottom = 110.dp),
+                    contentPadding = PaddingValues(bottom = 28.dp),
                     modifier = Modifier.fillMaxSize().testTag("album_detail_screen")
                 ) {
                     item {
@@ -118,12 +124,13 @@ fun AlbumDetailScreen(
                                 url = album.thumbnail,
                                 contentDescription = album.title,
                                 shape = MaterialTheme.shapes.large,
-                                modifier = Modifier.size(210.dp)
+                                modifier = Modifier.size(204.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = album.title,
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -133,6 +140,9 @@ fun AlbumDetailScreen(
                                     text = album.artist,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.clickable(enabled = !album.artistId.isNullOrBlank()) {
                                         album.artistId?.let(onOpenArtist)
                                     }
@@ -143,31 +153,33 @@ fun AlbumDetailScreen(
                                 Text(
                                     text = listOfNotNull(album.subtitle, album.secondSubtitle).joinToString(" • "),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Button(
                                     enabled = album.items.isNotEmpty(),
                                     onClick = { onPlayTracks(album.items, 0, album.title) },
-                                    modifier = Modifier.testTag("album_play_btn")
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("album_play_btn")
                                 ) {
                                     Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Play")
+                                    Text("Play", maxLines = 1, softWrap = false)
                                 }
                                 OutlinedButton(
                                     enabled = album.items.isNotEmpty(),
                                     onClick = { onPlayTracks(album.items.shuffled(), 0, album.title) },
-                                    modifier = Modifier.testTag("album_shuffle_btn")
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("album_shuffle_btn")
                                 ) {
                                     Icon(Icons.Rounded.Shuffle, contentDescription = null)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Shuffle")
+                                    Text("Shuffle", maxLines = 1, softWrap = false)
                                 }
                                 IconButton(
                                     onClick = onToggleSave,
@@ -200,7 +212,11 @@ fun AlbumDetailScreen(
                             isPlaying = nowPlayingId == song.videoId,
                             trackNumber = idx + 1,
                             onClick = { onPlayTracks(album.items, idx, album.title) },
-                            onMoreClick = { onTrackMore(song) }
+                            onMoreClick = { onTrackMore(song) },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = VelunaMotion.fastFade(),
+                                placementSpec = VelunaMotion.expressiveIntOffsetSpring()
+                            )
                         )
                     }
 
@@ -219,6 +235,7 @@ fun AlbumDetailScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ArtistDetailScreen(
     state: ArtistDetailState,
@@ -244,7 +261,7 @@ fun ArtistDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(320.dp)
                 )
                 LazyColumn(
-                    contentPadding = PaddingValues(bottom = 110.dp),
+                    contentPadding = PaddingValues(bottom = 28.dp),
                     modifier = Modifier.fillMaxSize().testTag("artist_detail_screen")
                 ) {
                     item { DetailTopBar(onBack = onBack) }
@@ -262,44 +279,69 @@ fun ArtistDetailScreen(
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
                                 text = artist.name,
-                                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                             val statsLine = listOfNotNull(artist.subscribers, artist.monthlyListeners).joinToString(" • ")
                             if (statsLine.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(statsLine, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = statsLine,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                             Spacer(modifier = Modifier.height(14.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 if (artist.topSongs.isNotEmpty()) {
                                     Button(
                                         onClick = { onPlayTracks(artist.topSongs, 0, artist.name) },
-                                        modifier = Modifier.testTag("artist_play_btn")
+                                        modifier = Modifier.heightIn(min = 48.dp).testTag("artist_play_btn")
                                     ) {
                                         Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Play Top")
+                                        Text("Play Top", maxLines = 1, softWrap = false)
                                     }
                                 }
                                 if (!artist.radioPlaylistId.isNullOrBlank()) {
-                                    OutlinedButton(onClick = {
-                                        onOpenBrowseItem(BrowseItem(BrowseKind.PLAYLIST, artist.radioPlaylistId, "${artist.name} Radio"))
-                                    }) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            onOpenBrowseItem(BrowseItem(BrowseKind.PLAYLIST, artist.radioPlaylistId, "${artist.name} Radio"))
+                                        },
+                                        modifier = Modifier.heightIn(min = 48.dp)
+                                    ) {
                                         Icon(Icons.Rounded.Radio, contentDescription = null)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Radio")
+                                        Text("Radio", maxLines = 1, softWrap = false)
                                     }
                                 }
                                 OutlinedButton(
                                     onClick = onToggleFollow,
-                                    modifier = Modifier.testTag("artist_follow_btn")
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("artist_follow_btn")
                                 ) {
                                     Icon(
                                         imageVector = if (isFollowed) Icons.Rounded.PersonRemove else Icons.Rounded.PersonAdd,
                                         contentDescription = null
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(if (isFollowed) "Following" else "Follow")
+                                    Text(if (isFollowed) "Following" else "Follow", maxLines = 1, softWrap = false)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        onPinShortcut(
+                                            BrowseItem(BrowseKind.ARTIST, artist.channelId, artist.name, artist.subscribers, artist.avatar ?: artist.thumbnail)
+                                        )
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Rounded.PushPin, contentDescription = "Pin shortcut")
                                 }
                             }
                         }
@@ -313,7 +355,11 @@ fun ArtistDetailScreen(
                                 song = song,
                                 isPlaying = nowPlayingId == song.videoId,
                                 onClick = { onPlayTracks(artist.topSongs, idx, artist.name) },
-                                onMoreClick = { onTrackMore(song) }
+                                onMoreClick = { onTrackMore(song) },
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = VelunaMotion.fastFade(),
+                                    placementSpec = VelunaMotion.expressiveIntOffsetSpring()
+                                )
                             )
                         }
                     }
@@ -333,6 +379,7 @@ fun ArtistDetailScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlaylistDetailScreen(
     state: PlaylistDetailState,
@@ -399,7 +446,7 @@ fun PlaylistDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(320.dp)
                 )
                 LazyColumn(
-                    contentPadding = PaddingValues(bottom = 110.dp),
+                    contentPadding = PaddingValues(bottom = 28.dp),
                     modifier = Modifier.fillMaxSize().testTag("playlist_detail_screen")
                 ) {
                     item {
@@ -483,36 +530,53 @@ fun PlaylistDetailScreen(
                             Text(
                                 text = page.title,
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                             if (!page.subtitle.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(page.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = page.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                             if (!page.description.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(page.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
+                                Text(
+                                    text = page.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                             Spacer(modifier = Modifier.height(14.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 Button(
                                     enabled = displayedTracks.isNotEmpty(),
                                     onClick = { onPlayTracks(displayedTracks, 0, page.title) },
-                                    modifier = Modifier.testTag("playlist_play_btn")
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("playlist_play_btn")
                                 ) {
                                     Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Play")
+                                    Text("Play", maxLines = 1, softWrap = false)
                                 }
                                 OutlinedButton(
                                     enabled = displayedTracks.isNotEmpty(),
                                     onClick = { onPlayTracks(displayedTracks.shuffled(), 0, page.title) },
-                                    modifier = Modifier.testTag("playlist_shuffle_btn")
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("playlist_shuffle_btn")
                                 ) {
                                     Icon(Icons.Rounded.Shuffle, contentDescription = null)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Shuffle")
+                                    Text("Shuffle", maxLines = 1, softWrap = false)
                                 }
                             }
                         }
@@ -527,16 +591,19 @@ fun PlaylistDetailScreen(
                             OutlinedTextField(
                                 value = state.filterQuery,
                                 onValueChange = onFilterChange,
-                                placeholder = { Text("Filter tracks…") },
+                                placeholder = { Text("Filter tracks…", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f).testTag("playlist_filter_input")
                             )
                             Box {
-                                OutlinedButton(onClick = { sortExpanded = true }) {
+                                OutlinedButton(
+                                    onClick = { sortExpanded = true },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) {
                                     Icon(Icons.Rounded.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(state.sortMode.label)
+                                    Text(state.sortMode.label, maxLines = 1, softWrap = false)
                                 }
                                 DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
                                     PlaylistSortMode.entries.forEach { mode ->
@@ -566,7 +633,11 @@ fun PlaylistDetailScreen(
                                 song = song,
                                 isPlaying = nowPlayingId == song.videoId,
                                 onClick = { onPlayTracks(displayedTracks, idx, page.title) },
-                                onMoreClick = { onTrackMore(song) }
+                                onMoreClick = { onTrackMore(song) },
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = VelunaMotion.fastFade(),
+                                    placementSpec = VelunaMotion.expressiveIntOffsetSpring()
+                                )
                             )
                         }
                     }
@@ -643,7 +714,7 @@ private fun DetailError(msg: String, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         DetailTopBar(onBack = onBack)
         Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(msg, color = MaterialTheme.colorScheme.error)
+            Text(msg, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
         }
     }
 }

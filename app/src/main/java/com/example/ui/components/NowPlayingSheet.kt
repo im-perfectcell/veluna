@@ -1,6 +1,15 @@
 package com.example.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -19,7 +28,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -66,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +85,7 @@ import com.example.model.Rating
 import com.example.model.RepeatMode
 import com.example.model.SongItem
 import com.example.playback.PlaybackUiState
+import com.example.ui.theme.VelunaMotion
 import com.example.ui.viewmodel.CommentsUiState
 import com.example.ui.viewmodel.LyricsUiState
 
@@ -170,7 +180,9 @@ fun NowPlayingOverlay(
                         Text(
                             text = playbackState.streamClient,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -224,12 +236,73 @@ fun NowPlayingOverlay(
                         ) {
                             Column {
                                 TabRow(selectedTabIndex = widePanelTab) {
-                                    Tab(selected = widePanelTab == 0, onClick = { widePanelTab = 0 }, text = { Text("Queue") })
-                                    Tab(selected = widePanelTab == 1, onClick = { widePanelTab = 1 }, text = { Text("Lyrics") })
-                                    Tab(selected = widePanelTab == 2, onClick = { widePanelTab = 2 }, text = { Text("Comments") })
+                                    Tab(selected = widePanelTab == 0, onClick = { widePanelTab = 0 }, text = { Text("Queue", maxLines = 1, softWrap = false) })
+                                    Tab(selected = widePanelTab == 1, onClick = { widePanelTab = 1 }, text = { Text("Lyrics", maxLines = 1, softWrap = false) })
+                                    Tab(selected = widePanelTab == 2, onClick = { widePanelTab = 2 }, text = { Text("Comments", maxLines = 1, softWrap = false) })
                                 }
-                                when (widePanelTab) {
-                                    0 -> QueuePanel(
+                                AnimatedContent(
+                                    targetState = widePanelTab,
+                                    transitionSpec = { fadeIn(VelunaMotion.fastFade()) togetherWith fadeOut(VelunaMotion.fastFade()) },
+                                    label = "wide_now_playing_tab"
+                                ) { tab ->
+                                    when (tab) {
+                                        0 -> QueuePanel(
+                                            queue = playbackState.queue,
+                                            currentIndex = playbackState.currentIndex,
+                                            sourceName = playbackState.sourceName,
+                                            onSelectIndex = onSelectQueueIndex,
+                                            onRemoveIndex = onRemoveQueueIndex,
+                                            onClearQueue = onClearQueue
+                                        )
+                                        1 -> SyncedLyricsPanel(
+                                            lyricsState = lyricsState,
+                                            positionMs = playbackState.positionMs,
+                                            romanizeEnabled = prefs.romanizeLyrics,
+                                            onToggleRomanize = onToggleRomanize,
+                                            onSelectProvider = onSelectLyricsProvider,
+                                            onResetPinned = onResetPinnedLyrics,
+                                            onNudgeOffset = onNudgeLyricsOffset,
+                                            onSeekToLine = onSeekTo
+                                        )
+                                        else -> CommentsPanel(state = commentsState)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            AnimatedContent(
+                                targetState = compactTab,
+                                transitionSpec = {
+                                    fadeIn(VelunaMotion.fastFade()) togetherWith fadeOut(VelunaMotion.fastFade())
+                                },
+                                label = "compact_now_playing_tab"
+                            ) { tab ->
+                                when (tab) {
+                                    0 -> PlayerDeck(
+                                        song = song,
+                                        playbackState = playbackState,
+                                        isDownloaded = isDownloaded,
+                                        onTogglePlayPause = onTogglePlayPause,
+                                        onSeekTo = onSeekTo,
+                                        onSkipNext = onSkipNext,
+                                        onSkipPrevious = onSkipPrevious,
+                                        onToggleShuffle = onToggleShuffle,
+                                        onCycleRepeat = onCycleRepeat,
+                                        onToggleLike = onToggleLike,
+                                        onSetSpeed = onSetSpeed,
+                                        onOpenSleepTimer = onOpenSleepTimer,
+                                        onOpenEqualizer = onOpenEqualizer,
+                                        onToggleDownload = onToggleDownload,
+                                        onArtistClick = onArtistClick,
+                                        onAlbumClick = onAlbumClick,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                                    )
+                                    1 -> QueuePanel(
                                         queue = playbackState.queue,
                                         currentIndex = playbackState.currentIndex,
                                         sourceName = playbackState.sourceName,
@@ -237,7 +310,7 @@ fun NowPlayingOverlay(
                                         onRemoveIndex = onRemoveQueueIndex,
                                         onClearQueue = onClearQueue
                                     )
-                                    1 -> SyncedLyricsPanel(
+                                    2 -> SyncedLyricsPanel(
                                         lyricsState = lyricsState,
                                         positionMs = playbackState.positionMs,
                                         romanizeEnabled = prefs.romanizeLyrics,
@@ -251,55 +324,8 @@ fun NowPlayingOverlay(
                                 }
                             }
                         }
-                    }
-                } else {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            when (compactTab) {
-                                0 -> PlayerDeck(
-                                    song = song,
-                                    playbackState = playbackState,
-                                    isDownloaded = isDownloaded,
-                                    onTogglePlayPause = onTogglePlayPause,
-                                    onSeekTo = onSeekTo,
-                                    onSkipNext = onSkipNext,
-                                    onSkipPrevious = onSkipPrevious,
-                                    onToggleShuffle = onToggleShuffle,
-                                    onCycleRepeat = onCycleRepeat,
-                                    onToggleLike = onToggleLike,
-                                    onSetSpeed = onSetSpeed,
-                                    onOpenSleepTimer = onOpenSleepTimer,
-                                    onOpenEqualizer = onOpenEqualizer,
-                                    onToggleDownload = onToggleDownload,
-                                    onArtistClick = onArtistClick,
-                                    onAlbumClick = onAlbumClick,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 24.dp)
-                                )
-                                1 -> QueuePanel(
-                                    queue = playbackState.queue,
-                                    currentIndex = playbackState.currentIndex,
-                                    sourceName = playbackState.sourceName,
-                                    onSelectIndex = onSelectQueueIndex,
-                                    onRemoveIndex = onRemoveQueueIndex,
-                                    onClearQueue = onClearQueue
-                                )
-                                2 -> SyncedLyricsPanel(
-                                    lyricsState = lyricsState,
-                                    positionMs = playbackState.positionMs,
-                                    romanizeEnabled = prefs.romanizeLyrics,
-                                    onToggleRomanize = onToggleRomanize,
-                                    onSelectProvider = onSelectLyricsProvider,
-                                    onResetPinned = onResetPinnedLyrics,
-                                    onNudgeOffset = onNudgeLyricsOffset,
-                                    onSeekToLine = onSeekTo
-                                )
-                                else -> CommentsPanel(state = commentsState)
-                            }
-                        }
 
-                        // Compact tab bar
+                        // Compact tab bar (prevents label wrap/cut-off on narrow widths)
                         TabRow(
                             selectedTabIndex = compactTab,
                             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
@@ -307,25 +333,33 @@ fun NowPlayingOverlay(
                             Tab(
                                 selected = compactTab == 0,
                                 onClick = { compactTab = 0 },
-                                text = { Text("Player") },
+                                text = {
+                                    Text("Player", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                },
                                 icon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                             Tab(
                                 selected = compactTab == 1,
                                 onClick = { compactTab = 1 },
-                                text = { Text("Queue") },
+                                text = {
+                                    Text("Queue", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                },
                                 icon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                             Tab(
                                 selected = compactTab == 2,
                                 onClick = { compactTab = 2 },
-                                text = { Text("Lyrics") },
+                                text = {
+                                    Text("Lyrics", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                },
                                 icon = { Icon(Icons.Rounded.Lyrics, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                             Tab(
                                 selected = compactTab == 3,
                                 onClick = { compactTab = 3 },
-                                text = { Text("Comments") },
+                                text = {
+                                    Text("Comments", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                },
                                 icon = { Icon(Icons.AutoMirrored.Rounded.Comment, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                         }
@@ -362,19 +396,30 @@ private fun PlayerDeck(
 
     val duration = playbackState.durationMs.coerceAtLeast(1L)
     val sliderPos = if (draggingSlider) dragPosMs else playbackState.positionMs.toFloat().coerceIn(0f, duration.toFloat())
+    val isLiked = song.rating == Rating.LIKE
+    val likeScale by animateFloatAsState(
+        targetValue = if (isLiked) 1.18f else 1f,
+        animationSpec = VelunaMotion.bouncyScaleSpring(),
+        label = "deck_like_scale"
+    )
+    val likeTint by animateColorAsState(
+        targetValue = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = VelunaMotion.snappySpring(),
+        label = "deck_like_tint"
+    )
 
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
     ) {
         VelunaArtwork(
             url = song.thumbnail,
             contentDescription = song.title,
             shape = MaterialTheme.shapes.large,
             modifier = Modifier
-                .widthIn(max = 340.dp)
-                .fillMaxWidth(0.86f)
+                .weight(1f, fill = false)
+                .widthIn(max = 320.dp)
                 .aspectRatio(1f)
                 .shadow(20.dp, MaterialTheme.shapes.large)
         )
@@ -427,25 +472,28 @@ private fun PlayerDeck(
                         .testTag("now_playing_like_btn")
                 ) {
                     Icon(
-                        imageVector = if (song.rating == Rating.LIKE) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = "Like track",
-                        tint = if (song.rating == Rating.LIKE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = likeTint,
+                        modifier = Modifier.scale(likeScale)
                     )
                 }
             }
 
-            if (!playbackState.errorMessage.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = playbackState.errorMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+            AnimatedVisibility(visible = !playbackState.errorMessage.isNullOrBlank()) {
+                Column {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = playbackState.errorMessage.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Slider(
                 value = sliderPos,
@@ -475,7 +523,7 @@ private fun PlayerDeck(
                 Text(formatMs(playbackState.durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Transport controls
             Row(
@@ -511,7 +559,7 @@ private fun PlayerDeck(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(66.dp)
                         .testTag("now_playing_play_pause_btn")
                 ) {
                     if (playbackState.isBuffering) {
@@ -521,11 +569,20 @@ private fun PlayerDeck(
                             modifier = Modifier.size(28.dp)
                         )
                     } else {
-                        Icon(
-                            imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(36.dp)
-                        )
+                        AnimatedContent(
+                            targetState = playbackState.isPlaying,
+                            transitionSpec = {
+                                (scaleIn(VelunaMotion.bouncyScaleSpring(), initialScale = 0.7f) + fadeIn(VelunaMotion.fastFade()))
+                                    .togetherWith(scaleOut(VelunaMotion.snappySpring(), targetScale = 0.7f) + fadeOut(VelunaMotion.fastFade()))
+                            },
+                            label = "deck_play_pause"
+                        ) { playing ->
+                            Icon(
+                                imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (playing) "Pause" else "Play",
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                     }
                 }
                 IconButton(

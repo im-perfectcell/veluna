@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,9 +31,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +45,7 @@ import com.example.model.BrowseItem
 import com.example.model.BrowseKind
 import com.example.model.Rating
 import com.example.model.SongItem
+import com.example.ui.theme.VelunaMotion
 
 @Composable
 fun SectionHeading(
@@ -66,9 +72,11 @@ fun SectionHeading(
         if (actionLabel != null && onActionClick != null) {
             TextButton(
                 onClick = onActionClick,
-                modifier = Modifier.testTag("section_action_${title.lowercase().replace(' ', '_')}")
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .testTag("section_action_${title.lowercase().replace(' ', '_')}")
             ) {
-                Text(actionLabel)
+                Text(actionLabel, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -209,7 +217,7 @@ fun ShortcutTile(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
         shape = MaterialTheme.shapes.medium,
         modifier = modifier
-            .height(60.dp)
+            .heightIn(min = 60.dp)
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
             .testTag("shortcut_tile_${item.id}")
@@ -232,7 +240,9 @@ fun ShortcutTile(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 6.dp)
             )
         }
     }
@@ -249,19 +259,30 @@ fun TrackRow(
     onLikeClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val rowBg = if (isPlaying) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-    } else {
-        MaterialTheme.colorScheme.background.copy(alpha = 0f)
-    }
+    val rowBg by animateColorAsState(
+        targetValue = if (isPlaying) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        } else {
+            MaterialTheme.colorScheme.background.copy(alpha = 0f)
+        },
+        animationSpec = VelunaMotion.snappySpring(),
+        label = "track_row_bg"
+    )
+    val isLiked = song.rating == Rating.LIKE
+    val likeScale by animateFloatAsState(
+        targetValue = if (isLiked) 1.15f else 1f,
+        animationSpec = VelunaMotion.bouncyScaleSpring(),
+        label = "track_like_scale"
+    )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 60.dp)
             .clip(MaterialTheme.shapes.small)
             .background(rowBg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
             .testTag("track_row_${song.videoId}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -331,7 +352,8 @@ fun TrackRow(
             Text(
                 text = song.duration,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
 
@@ -343,9 +365,10 @@ fun TrackRow(
                     .testTag("track_like_${song.videoId}")
             ) {
                 Icon(
-                    imageVector = if (song.rating == Rating.LIKE) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    contentDescription = if (song.rating == Rating.LIKE) "Unlike" else "Like",
-                    tint = if (song.rating == Rating.LIKE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    contentDescription = if (isLiked) "Unlike" else "Like",
+                    tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.scale(likeScale)
                 )
             }
         }

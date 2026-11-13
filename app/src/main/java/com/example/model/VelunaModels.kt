@@ -365,7 +365,8 @@ data class ResolvedStream(
     val mimeType: String,
     val bitrateKbps: Int,
     val loudnessDb: Double? = null,
-    val isVideo: Boolean = false
+    val isVideo: Boolean = false,
+    val isHls: Boolean = false
 )
 
 object EqualizerPresets {

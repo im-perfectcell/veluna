@@ -106,6 +106,28 @@ class InnerTubeClient(
         deviceModel = "RealityDevice14,1"
     )
 
+    private val androidTestsuite = ClientIdentity(
+        key = "ANDROID_TESTSUITE",
+        clientName = "ANDROID_TESTSUITE",
+        clientVersion = "1.9",
+        clientId = "30",
+        userAgent = "com.google.android.youtube/1.9 (Linux; U; Android 11) gzip",
+        osName = "Android",
+        osVersion = "11",
+        androidSdkVersion = "30"
+    )
+
+    private val androidCreator = ClientIdentity(
+        key = "ANDROID_CREATOR",
+        clientName = "ANDROID_CREATOR",
+        clientVersion = "24.40.100",
+        clientId = "14",
+        userAgent = "com.google.android.apps.youtube.creator/24.40.100 (Linux; U; Android 14) gzip",
+        osName = "Android",
+        osVersion = "14",
+        androidSdkVersion = "34"
+    )
+
     private suspend fun ensureVisitorData(): String? = withContext(Dispatchers.IO) {
         cachedVisitorData?.let { return@withContext it }
         runCatching {
@@ -298,63 +320,237 @@ class InnerTubeClient(
     }
 
     suspend fun resolveStreamUrl(videoId: String, quality: AudioQuality): Result<ResolvedStream> = runCatching {
-        val clients = listOf(androidVr, iosMusic, visionOs, webRemix)
-        var lastError: Throwable? = null
-        for (client in clients) {
-            try {
-                val root = post(
-                    "player",
-                    client,
-                    mapOf(
-                        "videoId" to JsonPrimitive(videoId),
-                        "contentCheckOk" to JsonPrimitive(true),
-                        "racyCheckOk" to JsonPrimitive(true)
-                    )
-                )
-                val obj = root.jsonObject
-                val status = obj["playabilityStatus"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
-                if (status != "OK") continue
-                val streamingData = obj["streamingData"]?.jsonObject ?: continue
-                val adaptive = streamingData["adaptiveFormats"]?.jsonArray.orEmpty()
-                val formats = streamingData["formats"]?.jsonArray.orEmpty()
+        val candidates = resolveStreamCandidates(videoId, quality).getOrElse { emptyList() }
+        candidates.firstOrNull { !it.isHls }
+            ?: candidates.firstOrNull()
+            ?: resolveMirrorStreamCandidates(videoId, quality).firstOrNull()
+            ?: throw IllegalStateException("No playable stream found for $videoId")
+    }
 
-                val audioCandidates = (adaptive + formats).mapNotNull { el ->
-                    val f = el.jsonObject
-                    val url = f["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    val mime = f["mimeType"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                    if (!mime.startsWith("audio/")) return@mapNotNull null
-                    val bitrate = f["bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
-                        ?: f["bitrate"]?.jsonPrimitive?.intOrNull ?: 128000
-                    Triple(url, mime, bitrate)
+    suspend fun resolveStreamCandidates(videoId: String, quality: AudioQuality): Result<List<ResolvedStream>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val clients = listOf(androidVr, iosMusic, androidTestsuite, androidCreator, visionOs)
+                val out = mutableListOf<ResolvedStream>()
+                val seenUrls = hashSetOf<String>()
+                var lastError: Throwable? = null
+
+                for (client in clients) {
+                    try {
+                        val root = post(
+                            "player",
+                            client,
+                            mapOf(
+                                "videoId" to JsonPrimitive(videoId),
+                                "contentCheckOk" to JsonPrimitive(true),
+                                "racyCheckOk" to JsonPrimitive(true)
+                            )
+                        )
+                        val obj = root.jsonObject
+                        val status = obj["playabilityStatus"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
+                        if (status != "OK") continue
+                        val streamingData = obj["streamingData"]?.jsonObject ?: continue
+                        val adaptive = streamingData["adaptiveFormats"]?.jsonArray.orEmpty()
+                        val formats = streamingData["formats"]?.jsonArray.orEmpty()
+
+                        val loudnessDb = obj["playerConfig"]?.jsonObject
+                            ?.get("audioConfig")?.jsonObject
+                            ?.get("loudnessDb")?.jsonPrimitive?.doubleOrNull
+
+                        val musicVideoType = obj["videoDetails"]?.jsonObject
+                            ?.get("musicVideoType")?.jsonPrimitive?.contentOrNull
+                        val isVideo = musicVideoType != null &&
+                            musicVideoType != "MUSIC_VIDEO_TYPE_ATV" &&
+                            musicVideoType != "MUSIC_VIDEO_TYPE_PRIVATELY_OWNED_TRACK"
+
+                        val audioCandidates = (adaptive + formats).mapNotNull { el ->
+                            val f = el.jsonObject
+                            val url = f["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                            val mime = f["mimeType"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                            if (!mime.startsWith("audio/")) return@mapNotNull null
+                            val bitrate = f["bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+                                ?: f["bitrate"]?.jsonPrimitive?.intOrNull ?: 128000
+                            Triple(url, mime, bitrate)
+                        }
+
+                        val chosen = selectFormatForQuality(audioCandidates, quality)
+                        if (chosen != null && seenUrls.add(chosen.first)) {
+                            out.add(
+                                ResolvedStream(
+                                    videoId = videoId,
+                                    url = chosen.first,
+                                    clientName = client.key,
+                                    userAgent = client.userAgent,
+                                    mimeType = chosen.second,
+                                    bitrateKbps = chosen.third / 1000,
+                                    loudnessDb = loudnessDb,
+                                    isVideo = isVideo,
+                                    isHls = false
+                                )
+                            )
+                        }
+
+                        // Backup progressive audio format from the same client if primary fails
+                        val backupProgressive = audioCandidates
+                            .sortedByDescending { it.third }
+                            .firstOrNull { it.first != chosen?.first }
+                        if (backupProgressive != null && seenUrls.add(backupProgressive.first)) {
+                            out.add(
+                                ResolvedStream(
+                                    videoId = videoId,
+                                    url = backupProgressive.first,
+                                    clientName = "${client.key} (Alt)",
+                                    userAgent = client.userAgent,
+                                    mimeType = backupProgressive.second,
+                                    bitrateKbps = backupProgressive.third / 1000,
+                                    loudnessDb = loudnessDb,
+                                    isVideo = isVideo,
+                                    isHls = false
+                                )
+                            )
+                        }
+
+                        // HLS manifest (especially reliable on IOS_MUSIC)
+                        val hlsUrl = streamingData["hlsManifestUrl"]?.jsonPrimitive?.contentOrNull
+                        if (!hlsUrl.isNullOrBlank() && seenUrls.add(hlsUrl)) {
+                            out.add(
+                                ResolvedStream(
+                                    videoId = videoId,
+                                    url = hlsUrl,
+                                    clientName = "${client.key} HLS",
+                                    userAgent = client.userAgent,
+                                    mimeType = "application/x-mpegURL",
+                                    bitrateKbps = quality.targetBitrateKbps,
+                                    loudnessDb = loudnessDb,
+                                    isVideo = isVideo,
+                                    isHls = true
+                                )
+                            )
+                        }
+
+                        // Stop early once we already have multiple distinct clients with candidates
+                        if (out.size >= 4) break
+                    } catch (t: Throwable) {
+                        lastError = t
+                    }
                 }
 
-                val chosen = selectFormatForQuality(audioCandidates, quality) ?: continue
-                val loudnessDb = obj["playerConfig"]?.jsonObject
-                    ?.get("audioConfig")?.jsonObject
-                    ?.get("loudnessDb")?.jsonPrimitive?.doubleOrNull
-
-                val musicVideoType = obj["videoDetails"]?.jsonObject
-                    ?.get("musicVideoType")?.jsonPrimitive?.contentOrNull
-                val isVideo = musicVideoType != null &&
-                    musicVideoType != "MUSIC_VIDEO_TYPE_ATV" &&
-                    musicVideoType != "MUSIC_VIDEO_TYPE_PRIVATELY_OWNED_TRACK"
-
-                return@runCatching ResolvedStream(
-                    videoId = videoId,
-                    url = chosen.first,
-                    clientName = client.key,
-                    userAgent = client.userAgent,
-                    mimeType = chosen.second,
-                    bitrateKbps = chosen.third / 1000,
-                    loudnessDb = loudnessDb,
-                    isVideo = isVideo
-                )
-            } catch (t: Throwable) {
-                lastError = t
+                if (out.isEmpty()) {
+                    out.addAll(resolveMirrorStreamCandidates(videoId, quality))
+                }
+                if (out.isEmpty()) {
+                    throw (lastError ?: IllegalStateException("No playable stream found for $videoId"))
+                }
+                out
             }
         }
-        throw (lastError ?: IllegalStateException("No playable stream found for $videoId"))
-    }
+
+    suspend fun resolveMirrorStreamCandidates(videoId: String, quality: AudioQuality): List<ResolvedStream> =
+        withContext(Dispatchers.IO) {
+            val mirrors = mutableListOf<ResolvedStream>()
+            val seen = hashSetOf<String>()
+            val mirrorUa = "Veluna-Android/1.0"
+
+            val pipedHosts = listOf(
+                "https://pipedapi.kavin.rocks",
+                "https://pipedapi.adminforge.de",
+                "https://api.piped.private.coffee"
+            )
+            for (host in pipedHosts) {
+                runCatching {
+                    val req = Request.Builder()
+                        .url("$host/streams/$videoId")
+                        .header("User-Agent", mirrorUa)
+                        .build()
+                    httpClient.newCall(req).execute().use { resp ->
+                        if (!resp.isSuccessful) return@use
+                        val root = json.parseToJsonElement(resp.body?.string().orEmpty()).jsonObject
+                        val streams = root["audioStreams"]?.jsonArray.orEmpty()
+                        val parsed = streams.mapNotNull { el ->
+                            val o = el.jsonObject
+                            val u = o["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                            val mime = o["mimeType"]?.jsonPrimitive?.contentOrNull ?: "audio/mp4"
+                            val bps = o["bitrate"]?.jsonPrimitive?.intOrNull ?: 128000
+                            Triple(u, mime, bps)
+                        }
+                        val best = selectFormatForQuality(parsed, quality)
+                        if (best != null && seen.add(best.first)) {
+                            mirrors.add(
+                                ResolvedStream(
+                                    videoId = videoId,
+                                    url = best.first,
+                                    clientName = "Piped Mirror",
+                                    userAgent = mirrorUa,
+                                    mimeType = best.second,
+                                    bitrateKbps = best.third / 1000,
+                                    isHls = false
+                                )
+                            )
+                        }
+                        val hls = root["hls"]?.jsonPrimitive?.contentOrNull
+                        if (!hls.isNullOrBlank() && seen.add(hls)) {
+                            mirrors.add(
+                                ResolvedStream(
+                                    videoId = videoId,
+                                    url = hls,
+                                    clientName = "Piped HLS",
+                                    userAgent = mirrorUa,
+                                    mimeType = "application/x-mpegURL",
+                                    bitrateKbps = quality.targetBitrateKbps,
+                                    isHls = true
+                                )
+                            )
+                        }
+                    }
+                }
+                if (mirrors.isNotEmpty()) break
+            }
+
+            if (mirrors.isEmpty()) {
+                val invidiousHosts = listOf(
+                    "https://inv.nadeko.net",
+                    "https://yewtu.be"
+                )
+                for (host in invidiousHosts) {
+                    runCatching {
+                        val req = Request.Builder()
+                            .url("$host/api/v1/videos/$videoId")
+                            .header("User-Agent", mirrorUa)
+                            .build()
+                        httpClient.newCall(req).execute().use { resp ->
+                            if (!resp.isSuccessful) return@use
+                            val root = json.parseToJsonElement(resp.body?.string().orEmpty()).jsonObject
+                            val adaptive = root["adaptiveFormats"]?.jsonArray.orEmpty()
+                            val parsed = adaptive.mapNotNull { el ->
+                                val o = el.jsonObject
+                                val u = o["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                                val type = o["type"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                                if (!type.startsWith("audio/")) return@mapNotNull null
+                                val bps = o["bitrate"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+                                    ?: o["bitrate"]?.jsonPrimitive?.intOrNull ?: 128000
+                                Triple(u, type.substringBefore(';'), bps)
+                            }
+                            val best = selectFormatForQuality(parsed, quality)
+                            if (best != null && seen.add(best.first)) {
+                                mirrors.add(
+                                    ResolvedStream(
+                                        videoId = videoId,
+                                        url = best.first,
+                                        clientName = "Invidious Mirror",
+                                        userAgent = mirrorUa,
+                                        mimeType = best.second,
+                                        bitrateKbps = best.third / 1000,
+                                        isHls = false
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    if (mirrors.isNotEmpty()) break
+                }
+            }
+            mirrors
+        }
 
     private fun selectFormatForQuality(
         candidates: List<Triple<String, String, Int>>,

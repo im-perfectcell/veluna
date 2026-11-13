@@ -1,5 +1,13 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -24,13 +32,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.model.Rating
 import com.example.playback.PlaybackUiState
+import com.example.ui.theme.VelunaMotion
 
 @Composable
 fun MiniPlayerBar(
@@ -42,9 +53,26 @@ fun MiniPlayerBar(
     modifier: Modifier = Modifier
 ) {
     val song = state.nowPlaying ?: return
-    val progress = if (state.durationMs > 0) {
+    val rawProgress = if (state.durationMs > 0) {
         (state.positionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = VelunaMotion.snappySpring(),
+        label = "mini_player_progress"
+    )
+    val isLiked = song.rating == Rating.LIKE
+    val likeScale by animateFloatAsState(
+        targetValue = if (isLiked) 1.15f else 1f,
+        animationSpec = VelunaMotion.bouncyScaleSpring(),
+        label = "mini_like_scale"
+    )
+    val likeTint by animateColorAsState(
+        targetValue = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = VelunaMotion.snappySpring(),
+        label = "mini_like_tint"
+    )
 
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -95,9 +123,10 @@ fun MiniPlayerBar(
                         .testTag("mini_player_like")
                 ) {
                     Icon(
-                        imageVector = if (song.rating == Rating.LIKE) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = "Like track",
-                        tint = if (song.rating == Rating.LIKE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = likeTint,
+                        modifier = Modifier.scale(likeScale)
                     )
                 }
 
@@ -113,11 +142,20 @@ fun MiniPlayerBar(
                             modifier = Modifier.size(22.dp)
                         )
                     } else {
-                        Icon(
-                            imageVector = if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (state.isPlaying) "Pause" else "Play",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        AnimatedContent(
+                            targetState = state.isPlaying,
+                            transitionSpec = {
+                                (scaleIn(VelunaMotion.bouncyScaleSpring(), initialScale = 0.72f) + fadeIn(VelunaMotion.fastFade()))
+                                    .togetherWith(scaleOut(VelunaMotion.snappySpring(), targetScale = 0.72f) + fadeOut(VelunaMotion.fastFade()))
+                            },
+                            label = "mini_play_icon"
+                        ) { playing ->
+                            Icon(
+                                imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (playing) "Pause" else "Play",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
 
@@ -135,7 +173,7 @@ fun MiniPlayerBar(
                 }
             }
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { animatedProgress },
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier

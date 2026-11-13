@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -32,7 +33,9 @@ import com.example.model.DownloadProgress
 import com.example.model.DownloadStatus
 import com.example.model.Rating
 import com.example.model.RepeatMode
+import com.example.model.ResolvedStream
 import com.example.model.SongItem
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,6 +47,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
@@ -85,10 +89,16 @@ class PlayerController(
 
     private var currentPrefs = VelunaUserPrefs()
     private var mediaController: MediaController? = null
+    private val controllerReady = CompletableDeferred<MediaController>()
     private var currentListenId: Long? = null
     private var currentTrackStartedAtSecs: Long = 0L
     private var scrobbledCurrentTrack = false
     private var heardSecondsThisTrack = 0L
+
+    private var activeCandidates: List<ResolvedStream> = emptyList()
+    private var activeCandidateIndex: Int = -1
+    private var triedMirrorsForCurrent: Boolean = false
+    private var currentCandidateSong: SongItem? = null
 
     private var tickerJob: Job? = null
     private var sleepJob: Job? = null
@@ -115,6 +125,9 @@ class PlayerController(
             {
                 val controller = runCatching { future.get() }.getOrNull() ?: return@addListener
                 mediaController = controller
+                if (!controllerReady.isCompleted) {
+                    controllerReady.complete(controller)
+                }
                 controller.playbackParameters = PlaybackParameters(currentPrefs.playbackSpeed)
                 controller.addListener(playerListener)
                 startTicker()
@@ -137,13 +150,41 @@ class PlayerController(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            _state.update {
-                it.copy(
-                    isBuffering = false,
-                    isPlaying = false,
-                    errorMessage = error.localizedMessage ?: "Playback failed"
-                )
+            val song = currentCandidateSong
+            if (song != null && !song.isLocal) {
+                val nextIdx = activeCandidateIndex + 1
+                if (nextIdx in activeCandidates.indices) {
+                    scope.launch {
+                        tryCandidateStream(song, nextIdx)
+                    }
+                    return
+                }
+                if (!triedMirrorsForCurrent) {
+                    triedMirrorsForCurrent = true
+                    scope.launch {
+                        val mirrors = innerTube.resolveMirrorStreamCandidates(song.videoId, currentPrefs.audioQuality)
+                        if (mirrors.isNotEmpty()) {
+                            val start = activeCandidates.size
+                            activeCandidates = activeCandidates + mirrors
+                            tryCandidateStream(song, start)
+                            return@launch
+                        }
+                        surfacePlaybackError(error)
+                    }
+                    return
+                }
             }
+            surfacePlaybackError(error)
+        }
+    }
+
+    private fun surfacePlaybackError(error: PlaybackException) {
+        _state.update {
+            it.copy(
+                isBuffering = false,
+                isPlaying = false,
+                errorMessage = "Playback failed (${error.errorCodeName}): ${error.localizedMessage ?: "Source unavailable"}"
+            )
         }
     }
 
@@ -400,6 +441,11 @@ class PlayerController(
             val isLiked = repository.isLiked(song.videoId)
             val hydratedSong = song.copy(rating = if (isLiked) Rating.LIKE else song.rating)
 
+            activeCandidates = emptyList()
+            activeCandidateIndex = -1
+            triedMirrorsForCurrent = false
+            currentCandidateSong = hydratedSong
+
             _state.update {
                 it.copy(
                     currentIndex = index,
@@ -415,21 +461,22 @@ class PlayerController(
 
             // 1) Local audio file
             if (hydratedSong.isLocal && hydratedSong.localUri != null) {
-                playUri(Uri.parse(hydratedSong.localUri), hydratedSong, "Local File", null)
+                playUri(Uri.parse(hydratedSong.localUri), hydratedSong, "Local File", null, null)
                 return@launch
             }
 
             // 2) Offline downloaded track
             val downloaded = withContext(Dispatchers.IO) { dao.getDownload(hydratedSong.videoId) }
             if (downloaded != null && File(downloaded.filePath).exists()) {
-                playUri(Uri.fromFile(File(downloaded.filePath)), hydratedSong, "Offline", null)
+                playUri(Uri.fromFile(File(downloaded.filePath)), hydratedSong, "Offline", null, null)
                 return@launch
             }
 
-            // 3) Resolve stream via InnerTube orchestrator
-            val resolved = innerTube.resolveStreamUrl(hydratedSong.videoId, currentPrefs.audioQuality)
-            resolved.onSuccess { stream ->
-                playUri(Uri.parse(stream.url), hydratedSong, stream.clientName, stream.loudnessDb)
+            // 3) Resolve prioritized stream candidates via InnerTube + HLS + Fallback mirrors
+            val resolved = innerTube.resolveStreamCandidates(hydratedSong.videoId, currentPrefs.audioQuality)
+            resolved.onSuccess { list ->
+                activeCandidates = list
+                tryCandidateStream(hydratedSong, 0)
             }.onFailure { err ->
                 _state.update {
                     it.copy(
@@ -446,8 +493,28 @@ class PlayerController(
         }
     }
 
-    private fun playUri(uri: Uri, song: SongItem, clientName: String, loudnessDb: Double?) {
-        val ctrl = mediaController ?: return
+    private suspend fun tryCandidateStream(song: SongItem, idx: Int) {
+        val candidate = activeCandidates.getOrNull(idx) ?: return
+        activeCandidateIndex = idx
+        VelunaPlaybackService.registerStreamHeaders(candidate.url, candidate.userAgent)
+        val mimeOverride = if (candidate.isHls) MimeTypes.APPLICATION_M3U8 else null
+        playUri(
+            uri = Uri.parse(candidate.url),
+            song = song,
+            clientName = candidate.clientName,
+            loudnessDb = candidate.loudnessDb,
+            mimeTypeOverride = mimeOverride
+        )
+    }
+
+    private suspend fun playUri(
+        uri: Uri,
+        song: SongItem,
+        clientName: String,
+        loudnessDb: Double?,
+        mimeTypeOverride: String?
+    ) {
+        val ctrl = mediaController ?: withTimeoutOrNull(5000L) { controllerReady.await() } ?: return
         val metadata = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artists)
@@ -460,6 +527,9 @@ class PlayerController(
         val mediaItem = MediaItem.Builder()
             .setMediaId(song.videoId)
             .setUri(uri)
+            .apply {
+                if (mimeTypeOverride != null) setMimeType(mimeTypeOverride)
+            }
             .setMediaMetadata(metadata)
             .build()
 
@@ -468,7 +538,7 @@ class PlayerController(
         ctrl.prepare()
         ctrl.play()
 
-        _state.update { it.copy(streamClient = clientName, isBuffering = false) }
+        _state.update { it.copy(streamClient = clientName, isBuffering = false, errorMessage = null) }
     }
 
     private fun recordListenStart(song: SongItem) {

@@ -9,10 +9,16 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.MainActivity
+import okhttp3.OkHttpClient
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 class VelunaPlaybackService : MediaSessionService() {
@@ -27,12 +33,40 @@ class VelunaPlaybackService : MediaSessionService() {
         super.onCreate()
         instance = this
 
+        val streamHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(25, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .addInterceptor { chain ->
+                val orig = chain.request()
+                val reqUrl = orig.url.toString()
+                val host = orig.url.host
+                val mappedUa = urlUserAgents[reqUrl]
+                    ?: hostUserAgents[host]
+                    ?: activeUserAgent
+                val builder = orig.newBuilder()
+                    .header("User-Agent", mappedUa)
+                if (("googlevideo.com" in host || "youtube.com" in host) && mappedUa.startsWith("Mozilla/")) {
+                    builder.header("Origin", "https://music.youtube.com")
+                    builder.header("Referer", "https://music.youtube.com/")
+                }
+                chain.proceed(builder.build())
+            }
+            .build()
+
+        val okHttpDataSourceFactory = OkHttpDataSource.Factory(streamHttpClient)
+        val dataSourceFactory = DefaultDataSource.Factory(this, okHttpDataSourceFactory)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(dataSourceFactory)
+
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
         player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
@@ -114,7 +148,6 @@ class VelunaPlaybackService : MediaSessionService() {
             if (loudnessDb == null || !loudnessNormEnabled) {
                 enhancer.enabled = false
             } else {
-                // Target -14 LUFS roughly
                 val gainDb = (-14.0 - loudnessDb).coerceIn(-6.0, 8.0)
                 if (gainDb > 0.5) {
                     enhancer.setTargetGain((gainDb * 100).roundToInt())
@@ -155,5 +188,25 @@ class VelunaPlaybackService : MediaSessionService() {
         var lastEqBands: List<Float> = List(10) { 0f }
         var lastLoudnessDb: Double? = null
         var loudnessNormEnabled: Boolean = true
+
+        @Volatile
+        var activeUserAgent: String =
+            "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+
+        private val urlUserAgents = ConcurrentHashMap<String, String>()
+        private val hostUserAgents = ConcurrentHashMap<String, String>()
+
+        fun registerStreamHeaders(url: String, userAgent: String) {
+            activeUserAgent = userAgent
+            urlUserAgents[url] = userAgent
+            runCatching { java.net.URI(url).host }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { hostUserAgents[it] = userAgent }
+            if (urlUserAgents.size > 64) {
+                urlUserAgents.clear()
+                urlUserAgents[url] = userAgent
+            }
+        }
     }
 }

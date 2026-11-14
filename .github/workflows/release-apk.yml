@@ -58,6 +58,37 @@ jobs:
           fi
           keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1:|SHA256:" || true
 
+      - name: Prepare Firebase Google Services config
+        env:
+          SECRET_GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SECRET_GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$SECRET_GOOGLE_SERVICES_JSON" ]; then
+            echo "Using GOOGLE_SERVICES_JSON secret..."
+            printf '%s\n' "$SECRET_GOOGLE_SERVICES_JSON" > app/google-services.json
+          elif [ -n "$SECRET_GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "Decoding GOOGLE_SERVICES_JSON_B64 secret..."
+            printf '%s' "$SECRET_GOOGLE_SERVICES_JSON_B64" | tr -d '[:space:]' | base64 -d > app/google-services.json
+          elif [ -s app/google-services.json ]; then
+            echo "Using checked-in app/google-services.json..."
+          else
+            echo "app/google-services.json not in checkout; restoring project google-services.json..."
+            printf '%s' 'ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiNzQ0ODUzNTc0NTk5IiwKICAgICJwcm9qZWN0X2lkIjogImdlbi1sYW5nLWNsaWVudC0wMTAzNzI4MjM3IiwKICAgICJzdG9yYWdlX2J1Y2tldCI6ICJnZW4tbGFuZy1jbGllbnQtMDEwMzcyODIzNy5maXJlYmFzZXN0b3JhZ2UuYXBwIgogIH0sCiAgImNsaWVudCI6IFsKICAgIHsKICAgICAgImNsaWVudF9pbmZvIjogewogICAgICAgICJtb2JpbGVzZGtfYXBwX2lkIjogIjE6NzQ0ODUzNTc0NTk5OmFuZHJvaWQ6YzcwMTFmOThlMGM2ZWVhM2Q2YmZlMiIsCiAgICAgICAgImFuZHJvaWRfY2xpZW50X2luZm8iOiB7CiAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5haXN0dWRpby52ZWx1bmEubXhrcnRxIgogICAgICAgIH0KICAgICAgfSwKICAgICAgIm9hdXRoX2NsaWVudCI6IFsKICAgICAgICB7CiAgICAgICAgICAiY2xpZW50X2lkIjogIjc0NDg1MzU3NDU5OS00MW1ocWdvaGtuYmEyaTlmaWZqYWpxdmVtbmN0NDM5cS5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsCiAgICAgICAgICAiY2xpZW50X3R5cGUiOiAxLAogICAgICAgICAgImFuZHJvaWRfaW5mbyI6IHsKICAgICAgICAgICAgInBhY2thZ2VfbmFtZSI6ICJjb20uYWlzdHVkaW8udmVsdW5hLm14a3J0cSIsCiAgICAgICAgICAgICJjZXJ0aWZpY2F0ZV9oYXNoIjogIjA1NmEzYzJkMTNhYTA4YTA2MTQwZWU4NGVkNTg5YTRiMjIwYzY4M2YiCiAgICAgICAgICB9CiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAiY2xpZW50X2lkIjogIjc0NDg1MzU3NDU5OS01bTk4OHVmZ2NsbXI3bnU3Nzk1YzVhaG1oZmM0aTFrNi5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsCiAgICAgICAgICAiY2xpZW50X3R5cGUiOiAzCiAgICAgICAgfQogICAgICBdLAogICAgICAiYXBpX2tleSI6IFsKICAgICAgICB7CiAgICAgICAgICAiY3VycmVudF9rZXkiOiAiQUl6YVN5Q2piN2FWUmxrdktjdVByTE93NXpOVWZ4bDRGcUlJWWlrIgogICAgICAgIH0KICAgICAgXSwKICAgICAgInNlcnZpY2VzIjogewogICAgICAgICJhcHBpbnZpdGVfc2VydmljZSI6IHsKICAgICAgICAgICJvdGhlcl9wbGF0Zm9ybV9vYXV0aF9jbGllbnQiOiBbCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAiY2xpZW50X2lkIjogIjc0NDg1MzU3NDU5OS01bTk4OHVmZ2NsbXI3bnU3Nzk1YzVhaG1oZmM0aTFrNi5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsCiAgICAgICAgICAgICAgImNsaWVudF90eXBlIjogMwogICAgICAgICAgICB9CiAgICAgICAgICBdCiAgICAgICAgfQogICAgICB9CiAgICB9CiAgXSwKICAiY29uZmlndXJhdGlvbl92ZXJzaW9uIjogIjEiCn0=' | base64 -d > app/google-services.json
+          fi
+          if [ ! -s app/google-services.json ]; then
+            echo "Error: failed to materialize app/google-services.json"
+            exit 1
+          fi
+          if [ ! -s app/src/main/res/values/firebase_applet_config.xml ]; then
+            mkdir -p app/src/main/res/values
+            printf '%s\n' \
+              '<?xml version="1.0" encoding="utf-8" standalone="no"?>' \
+              '<resources>' \
+              '    <string name="firestore_database_id" translatable="false">ai-studio-android-veluna-19b2b641-8c36-4a56-b277-5b81c63f187c</string>' \
+              '</resources>' > app/src/main/res/values/firebase_applet_config.xml
+          fi
+          ls -lh app/google-services.json app/src/main/res/values/firebase_applet_config.xml
+
       - name: Build installable APK
         run: |
           VER_CODE=$((10 + GITHUB_RUN_NUMBER))

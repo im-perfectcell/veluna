@@ -80,8 +80,17 @@ import com.example.model.TasteProfile
 import com.example.model.ThemeMode
 import com.example.model.VelunaThemePreset
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.ButtonDefaults
 import com.example.ui.theme.VelunaMotion
 import com.example.ui.theme.parseHexColorOrNull
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
+import com.example.ui.theme.velunaOutlinedButtonBorder
+import com.example.ui.theme.velunaOutlinedButtonColors
+import com.example.ui.theme.velunaOutlinedFieldColors
+import com.example.ui.theme.velunaPrimaryButtonColors
+import com.example.ui.theme.velunaSliderColors
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -180,6 +189,7 @@ fun SettingsScreen(
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
@@ -288,6 +298,8 @@ fun SettingsScreen(
                                     OutlinedButton(
                                         onClick = onSyncNow,
                                         enabled = !cloudAuthState.isSyncing && !cloudAuthState.isAuthBusy,
+                                        colors = velunaOutlinedButtonColors(),
+                                        border = velunaOutlinedButtonBorder(!cloudAuthState.isSyncing && !cloudAuthState.isAuthBusy),
                                         modifier = Modifier
                                             .weight(1f)
                                             .heightIn(min = 48.dp)
@@ -312,6 +324,7 @@ fun SettingsScreen(
                                     TextButton(
                                         onClick = onSignOut,
                                         enabled = !cloudAuthState.isAuthBusy,
+                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                                         modifier = Modifier
                                             .heightIn(min = 48.dp)
                                             .testTag("settings_google_signout_btn")
@@ -358,6 +371,7 @@ fun SettingsScreen(
                                 Button(
                                     onClick = onSignInWithGoogle,
                                     enabled = !cloudAuthState.isAuthBusy,
+                                    colors = velunaPrimaryButtonColors(),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 48.dp)
@@ -392,6 +406,7 @@ fun SettingsScreen(
                             value = displayName,
                             onValueChange = { displayName = it },
                             label = { Text("Display Name") },
+                            colors = velunaOutlinedFieldColors(),
                             singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
@@ -402,6 +417,7 @@ fun SettingsScreen(
                                 onSetDisplayName(displayName)
                                 onStatusMessage("Name updated")
                             },
+                            colors = velunaPrimaryButtonColors(),
                             modifier = Modifier
                                 .heightIn(min = 48.dp)
                                 .testTag("settings_display_name_save")
@@ -419,6 +435,8 @@ fun SettingsScreen(
                     }
                     OutlinedButton(
                         onClick = onOpenTasteOnboarding,
+                        colors = velunaOutlinedButtonColors(),
+                        border = velunaOutlinedButtonBorder(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
@@ -451,6 +469,7 @@ fun SettingsScreen(
 
                     Surface(
                         color = previewBg,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -465,6 +484,7 @@ fun SettingsScreen(
                                 Text(
                                     text = prefs.themePreset.label,
                                     style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onBackground,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -486,16 +506,20 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text("Theme Mode", style = MaterialTheme.typography.labelLarge)
+                    val chipColors = velunaFilterChipColors()
+                    Text("Theme Mode", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         ThemeMode.entries.forEach { mode ->
+                            val selected = prefs.themeMode == mode
                             FilterChip(
-                                selected = prefs.themeMode == mode,
+                                selected = selected,
                                 onClick = { onSetThemeMode(mode) },
+                                colors = chipColors,
+                                border = velunaFilterChipBorder(selected),
                                 label = { Text(mode.label, maxLines = 1, softWrap = false) },
                                 modifier = Modifier
                                     .heightIn(min = 48.dp)
@@ -504,16 +528,19 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text("Theme Preset", style = MaterialTheme.typography.labelLarge)
+                    Text("Theme Preset", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         VelunaThemePreset.entries.forEach { preset ->
+                            val selected = prefs.themePreset == preset
                             FilterChip(
-                                selected = prefs.themePreset == preset,
+                                selected = selected,
                                 onClick = { onSetThemePreset(preset) },
+                                colors = chipColors,
+                                border = velunaFilterChipBorder(selected),
                                 label = { Text(preset.label, maxLines = 1, softWrap = false) },
                                 modifier = Modifier
                                     .heightIn(min = 48.dp)
@@ -522,7 +549,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text("Accent Swatch", style = MaterialTheme.typography.labelLarge)
+                    Text("Accent Swatch", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     val swatches = listOf<String?>(null, "#EA580C", "#E11D48", "#8B5CF6", "#0EA5E9", "#10B981", "#F59E0B")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -550,7 +577,7 @@ fun SettingsScreen(
                                         .size(34.dp)
                                         .scale(swatchScale)
                                         .clip(CircleShape)
-                                        .background(if (hex == null) MaterialTheme.colorScheme.surfaceVariant else c)
+                                        .background(if (hex == null) MaterialTheme.colorScheme.surfaceContainerHighest else c)
                                         .border(
                                             width = if (selected) 3.dp else 1.dp,
                                             color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
@@ -559,7 +586,11 @@ fun SettingsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (hex == null) {
-                                        Text("A", style = MaterialTheme.typography.labelSmall)
+                                        Text(
+                                            text = "A",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                     }
                                 }
                             }
@@ -573,11 +604,12 @@ fun SettingsScreen(
                         tag = "settings_adapt_art"
                     )
 
-                    Text("Corner Radius (${prefs.cornerRadiusDp} dp)", style = MaterialTheme.typography.labelLarge)
+                    Text("Corner Radius (${prefs.cornerRadiusDp} dp)", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     Slider(
                         value = prefs.cornerRadiusDp.toFloat(),
                         onValueChange = { onSetCornerRadius(it.roundToInt()) },
                         valueRange = 4f..24f,
+                        colors = velunaSliderColors(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("settings_corner_radius_slider")
@@ -654,6 +686,8 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = onOpenEqualizer,
+                        colors = velunaOutlinedButtonColors(),
+                        border = velunaOutlinedButtonBorder(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
@@ -744,6 +778,7 @@ fun SettingsScreen(
                         value = listenBrainzToken,
                         onValueChange = { listenBrainzToken = it },
                         label = { Text("ListenBrainz User Token") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -751,6 +786,7 @@ fun SettingsScreen(
                         value = lastFmUser,
                         onValueChange = { lastFmUser = it },
                         label = { Text("Last.fm Username") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -758,6 +794,7 @@ fun SettingsScreen(
                         value = lastFmKey,
                         onValueChange = { lastFmKey = it },
                         label = { Text("Last.fm API Key") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -765,6 +802,7 @@ fun SettingsScreen(
                         value = lastFmSecret,
                         onValueChange = { lastFmSecret = it },
                         label = { Text("Last.fm API Secret") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -772,6 +810,7 @@ fun SettingsScreen(
                         value = lastFmSession,
                         onValueChange = { lastFmSession = it },
                         label = { Text("Last.fm Session Key") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -779,6 +818,7 @@ fun SettingsScreen(
                         onClick = {
                             onSaveScrobbling(scrobbleEnabled, lastFmUser, lastFmKey, lastFmSecret, lastFmSession, listenBrainzToken)
                         },
+                        colors = velunaPrimaryButtonColors(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
@@ -834,6 +874,7 @@ fun SettingsScreen(
                     ) {
                         Button(
                             onClick = { exportBackupLauncher.launch("veluna-backup.json") },
+                            colors = velunaPrimaryButtonColors(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -846,6 +887,8 @@ fun SettingsScreen(
                         }
                         OutlinedButton(
                             onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "*/*")) },
+                            colors = velunaOutlinedButtonColors(),
+                            border = velunaOutlinedButtonBorder(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -870,6 +913,8 @@ private fun SettingsCard(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         shape = MaterialTheme.shapes.large,
         modifier = Modifier
             .fillMaxWidth()
@@ -882,6 +927,7 @@ private fun SettingsCard(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -911,6 +957,7 @@ private fun SettingSwitchRow(
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 12.dp)

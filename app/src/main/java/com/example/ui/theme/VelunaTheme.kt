@@ -1,23 +1,45 @@
 package com.example.ui.theme
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemColors
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRailItemColors
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.SliderColors
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.example.R
 import com.example.data.local.VelunaUserPrefs
 import com.example.model.ThemeMode
@@ -158,40 +180,53 @@ fun ensureContrast(foreground: Color, background: Color, minRatio: Float): Color
     return lerp(foreground, target, high)
 }
 
+private fun ensureContrastAcross(
+    foreground: Color,
+    backgrounds: List<Color>,
+    minRatio: Float
+): Color {
+    var result = foreground
+    repeat(2) {
+        backgrounds.forEach { bg ->
+            result = ensureContrast(result, bg, minRatio)
+        }
+    }
+    return result
+}
+
 private fun enforceWcagContrast(scheme: ColorScheme): ColorScheme {
-    val safePrimary = ensureContrast(
-        ensureContrast(scheme.primary, scheme.surface, 4.5f),
+    val primaryTextSurfaces = listOf(
+        scheme.background,
+        scheme.surface,
         scheme.surfaceContainer,
-        4.5f
+        scheme.surfaceContainerHigh
     )
+    val allTextSurfaces = listOf(
+        scheme.background,
+        scheme.surface,
+        scheme.surfaceContainer,
+        scheme.surfaceContainerHigh,
+        scheme.surfaceContainerHighest,
+        scheme.surfaceVariant
+    )
+
+    val safePrimary = ensureContrastAcross(scheme.primary, primaryTextSurfaces, 4.5f)
     val safeOnPrimary = ensureContrast(scheme.onPrimary, safePrimary, 4.6f)
-    val safeOnPrimaryContainer = ensureContrast(scheme.onPrimaryContainer, scheme.primaryContainer, 4.6f)
+    val safeOnPrimaryContainer = ensureContrast(scheme.onPrimaryContainer, scheme.primaryContainer, 5.0f)
 
-    val safeSecondary = ensureContrast(
-        ensureContrast(scheme.secondary, scheme.surface, 4.5f),
-        scheme.surfaceContainer,
-        4.5f
-    )
+    val safeSecondary = ensureContrastAcross(scheme.secondary, primaryTextSurfaces, 4.5f)
     val safeOnSecondary = ensureContrast(scheme.onSecondary, safeSecondary, 4.6f)
-    val safeOnSecondaryContainer = ensureContrast(scheme.onSecondaryContainer, scheme.secondaryContainer, 4.6f)
+    val safeOnSecondaryContainer = ensureContrast(scheme.onSecondaryContainer, scheme.secondaryContainer, 5.0f)
 
-    val safeTertiary = ensureContrast(scheme.tertiary, scheme.surface, 4.5f)
+    val safeTertiary = ensureContrastAcross(scheme.tertiary, listOf(scheme.background, scheme.surface, scheme.surfaceContainer), 4.5f)
     val safeOnTertiary = ensureContrast(scheme.onTertiary, safeTertiary, 4.6f)
 
-    val safeOnBackground = ensureContrast(scheme.onBackground, scheme.background, 7.0f)
-    val safeOnSurface = ensureContrast(
-        ensureContrast(scheme.onSurface, scheme.surface, 7.0f),
-        scheme.surfaceContainerHigh,
-        6.5f
-    )
-    val safeOnSurfaceVariant = ensureContrast(
-        ensureContrast(scheme.onSurfaceVariant, scheme.surface, 4.6f),
-        scheme.surfaceContainerHigh,
-        4.5f
-    )
-    val safeOutline = ensureContrast(scheme.outline, scheme.surfaceContainer, 2.4f)
-    val safeOutlineVariant = ensureContrast(scheme.outlineVariant, scheme.surfaceContainer, 1.45f)
-    val safeError = ensureContrast(scheme.error, scheme.surfaceContainer, 4.6f)
+    val safeOnBackground = ensureContrast(scheme.onBackground, scheme.background, 7.5f)
+    val safeOnSurface = ensureContrastAcross(scheme.onSurface, allTextSurfaces, 7.0f)
+    val safeOnSurfaceVariant = ensureContrastAcross(scheme.onSurfaceVariant, allTextSurfaces, 4.6f)
+    val safeOutline = ensureContrastAcross(scheme.outline, listOf(scheme.background, scheme.surfaceContainer, scheme.surfaceContainerHigh), 2.8f)
+    val safeOutlineVariant = ensureContrastAcross(scheme.outlineVariant, listOf(scheme.background, scheme.surfaceContainer, scheme.surfaceContainerHigh), 1.6f)
+    val safeError = ensureContrastAcross(scheme.error, primaryTextSurfaces, 4.6f)
     val safeOnError = ensureContrast(scheme.onError, safeError, 4.6f)
 
     return scheme.copy(
@@ -606,6 +641,12 @@ private fun lightPresetScheme(preset: VelunaThemePreset): ColorScheme = when (pr
     )
 }
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable
 fun VelunaTheme(
     prefs: VelunaUserPrefs,
@@ -634,10 +675,119 @@ fun VelunaTheme(
         extraLarge = RoundedCornerShape((r * 1.8f).coerceAtMost(32.dp))
     )
 
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = view.context.findActivity()?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !useDark
+            controller.isAppearanceLightNavigationBars = !useDark
+        }
+    }
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = VelunaTypography,
-        shapes = shapes,
-        content = content
-    )
+        shapes = shapes
+    ) {
+        CompositionLocalProvider(LocalContentColor provides colorScheme.onBackground) {
+            content()
+        }
+    }
 }
+
+@Composable
+fun velunaFilterChipColors(): SelectableChipColors = FilterChipDefaults.filterChipColors(
+    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+    labelColor = MaterialTheme.colorScheme.onSurface,
+    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+)
+
+@Composable
+fun velunaFilterChipBorder(selected: Boolean): BorderStroke = BorderStroke(
+    width = if (selected) 1.5.dp else 1.dp,
+    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)
+)
+
+@Composable
+fun velunaInputChipColors(): SelectableChipColors = InputChipDefaults.inputChipColors(
+    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    labelColor = MaterialTheme.colorScheme.onSurface,
+    trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+)
+
+@Composable
+fun velunaOutlinedFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.84f),
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f),
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+    focusedLabelColor = MaterialTheme.colorScheme.primary,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+    unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedTrailingIconColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    cursorColor = MaterialTheme.colorScheme.primary
+)
+
+@Composable
+fun velunaPrimaryButtonColors(): ButtonColors = ButtonDefaults.buttonColors(
+    containerColor = MaterialTheme.colorScheme.primary,
+    contentColor = MaterialTheme.colorScheme.onPrimary,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
+@Composable
+fun velunaOutlinedButtonColors(): ButtonColors = ButtonDefaults.outlinedButtonColors(
+    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
+    contentColor = MaterialTheme.colorScheme.onSurface,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.45f),
+    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+)
+
+@Composable
+fun velunaOutlinedButtonBorder(enabled: Boolean = true): BorderStroke = BorderStroke(
+    width = 1.2.dp,
+    color = if (enabled) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant
+)
+
+@Composable
+fun velunaSliderColors(enabled: Boolean = true): SliderColors = SliderDefaults.colors(
+    thumbColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+    activeTrackColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    disabledThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledActiveTrackColor = MaterialTheme.colorScheme.outline,
+    disabledInactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+)
+
+@Composable
+fun velunaNavBarItemColors(): NavigationBarItemColors = NavigationBarItemDefaults.colors(
+    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    selectedTextColor = MaterialTheme.colorScheme.primary,
+    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
+@Composable
+fun velunaNavRailItemColors(): NavigationRailItemColors = NavigationRailItemDefaults.colors(
+    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    selectedTextColor = MaterialTheme.colorScheme.primary,
+    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+

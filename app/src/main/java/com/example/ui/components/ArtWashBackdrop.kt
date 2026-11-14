@@ -54,15 +54,15 @@ fun ArtWashBackdrop(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(artworkUrl)
-                    .size(128)
+                    .size(256)
                     .crossfade(true)
                     .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .alpha(0.28f)
-                    .blur(40.dpCompat())
+                    .alpha(0.26f)
+                    .blur(36.dpCompat())
             )
         } else if (useStageFallback) {
             Image(
@@ -71,17 +71,18 @@ fun ArtWashBackdrop(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .alpha(0.32f)
+                    .alpha(0.24f)
             )
         }
 
+        val topWash = androidx.compose.ui.graphics.lerp(bg, animatedAccent, 0.22f).copy(alpha = 0.80f)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0.0f to animatedAccent.copy(alpha = 0.22f),
-                        0.45f to bg.copy(alpha = 0.72f),
+                        0.0f to topWash,
+                        0.48f to bg.copy(alpha = 0.90f),
                         1.0f to bg
                     )
                 )

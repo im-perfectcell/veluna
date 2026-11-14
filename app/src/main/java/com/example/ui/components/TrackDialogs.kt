@@ -66,6 +66,11 @@ import com.example.model.BrowseKind
 import com.example.model.LOCAL_PLAYLIST_PREFIX
 import com.example.model.Rating
 import com.example.model.SongItem
+import androidx.compose.material3.ListItemDefaults
+import com.example.ui.theme.velunaOutlinedButtonBorder
+import com.example.ui.theme.velunaOutlinedButtonColors
+import com.example.ui.theme.velunaOutlinedFieldColors
+import com.example.ui.theme.velunaPrimaryButtonColors
 import com.example.ui.viewmodel.ImportDialogState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +93,8 @@ fun TrackMenuSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.testTag("track_menu_sheet")
     ) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
@@ -104,11 +111,17 @@ fun TrackMenuSheet(
                 )
                 Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(song.artists, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
             MenuActionRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Play next", "menu_play_next") {
                 onPlayNext(); onDismiss()
@@ -169,10 +182,14 @@ private fun MenuActionRow(
     icon: ImageVector,
     label: String,
     tag: String,
-    iconTint: Color = LocalContentColor.current,
+    iconTint: Color = MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit
 ) {
     ListItem(
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            headlineColor = MaterialTheme.colorScheme.onSurface
+        ),
         headlineContent = { Text(label) },
         leadingContent = { Icon(icon, contentDescription = null, tint = iconTint) },
         modifier = Modifier
@@ -194,6 +211,9 @@ fun AddToPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Add to playlist") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -213,6 +233,7 @@ fun AddToPlaylistDialog(
                         value = newTitle,
                         onValueChange = { newTitle = it },
                         label = { Text("New playlist name") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier
                             .weight(1f)
@@ -220,6 +241,7 @@ fun AddToPlaylistDialog(
                     )
                     Button(
                         enabled = newTitle.isNotBlank(),
+                        colors = velunaPrimaryButtonColors(),
                         onClick = {
                             onCreateNew(newTitle.trim())
                             onDismiss()
@@ -235,6 +257,11 @@ fun AddToPlaylistDialog(
                         val numericId = pl.id.removePrefix(LOCAL_PLAYLIST_PREFIX).toLongOrNull()
                         if (numericId != null) {
                             ListItem(
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                    headlineColor = MaterialTheme.colorScheme.onSurface,
+                                    supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 headlineContent = { Text(pl.title) },
                                 supportingContent = { Text(pl.subtitle.orEmpty()) },
                                 leadingContent = {
@@ -285,6 +312,9 @@ fun CreateEditPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text(if (isEditing) "Edit playlist" else "New playlist") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -301,6 +331,8 @@ fun CreateEditPlaylistDialog(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
+                            colors = velunaOutlinedButtonColors(),
+                            border = velunaOutlinedButtonBorder(),
                             modifier = Modifier.testTag("edit_playlist_cover_btn")
                         ) {
                             Icon(Icons.Rounded.Image, contentDescription = null)
@@ -313,6 +345,7 @@ fun CreateEditPlaylistDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Title") },
+                    colors = velunaOutlinedFieldColors(),
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -322,6 +355,7 @@ fun CreateEditPlaylistDialog(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Description (optional)") },
+                    colors = velunaOutlinedFieldColors(),
                     maxLines = 3,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -332,6 +366,7 @@ fun CreateEditPlaylistDialog(
         confirmButton = {
             Button(
                 enabled = title.isNotBlank(),
+                colors = velunaPrimaryButtonColors(),
                 onClick = {
                     onConfirm(title.trim(), description.trim(), coverUri)
                     onDismiss()
@@ -369,12 +404,31 @@ fun ImportPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = { if (!state.isImporting) onDismiss() },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Import Playlist") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TabRow(selectedTabIndex = tab) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("YouTube URL") })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("CSV / M3U") })
+                TabRow(
+                    selectedTabIndex = tab,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Tab(
+                        selected = tab == 0,
+                        onClick = { tab = 0 },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = { Text("YouTube URL") }
+                    )
+                    Tab(
+                        selected = tab == 1,
+                        onClick = { tab = 1 },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = { Text("CSV / M3U") }
+                    )
                 }
 
                 if (tab == 0) {
@@ -382,6 +436,7 @@ fun ImportPlaylistDialog(
                         value = urlInput,
                         onValueChange = { urlInput = it },
                         label = { Text("YouTube / YT Music playlist link or ID") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -389,6 +444,7 @@ fun ImportPlaylistDialog(
                     )
                     Button(
                         enabled = !state.isImporting && urlInput.isNotBlank(),
+                        colors = velunaPrimaryButtonColors(),
                         onClick = { onImportYouTube(urlInput) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -406,11 +462,14 @@ fun ImportPlaylistDialog(
                         value = filePlaylistName,
                         onValueChange = { filePlaylistName = it },
                         label = { Text("Destination playlist title") },
+                        colors = velunaOutlinedFieldColors(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedButton(
                         enabled = !state.isImporting,
+                        colors = velunaOutlinedButtonColors(),
+                        border = velunaOutlinedButtonBorder(!state.isImporting),
                         onClick = { fileLauncher.launch(arrayOf("*/*")) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -427,7 +486,7 @@ fun ImportPlaylistDialog(
                         progress = { state.progress.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text(state.statusText, style = MaterialTheme.typography.bodySmall)
+                    Text(state.statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 }
                 if (!state.error.isNullOrBlank()) {
                     Text(state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -437,6 +496,7 @@ fun ImportPlaylistDialog(
         confirmButton = {
             if (state.completedPlaylistId != null) {
                 Button(
+                    colors = velunaPrimaryButtonColors(),
                     onClick = {
                         onOpenPlaylist(state.completedPlaylistId)
                         onDismiss()
@@ -467,6 +527,9 @@ fun SleepTimerDialog(
     val presets = listOf(10, 15, 30, 45, 60, 90)
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Sleep Timer") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -480,6 +543,10 @@ fun SleepTimerDialog(
                 }
                 presets.forEach { m ->
                     ListItem(
+                        colors = ListItemDefaults.colors(
+                            containerColor = Color.Transparent,
+                            headlineColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         headlineContent = { Text("$m minutes") },
                         modifier = Modifier
                             .clickable {
@@ -519,6 +586,9 @@ fun EditHomeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text("Customize Home") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -527,7 +597,7 @@ fun EditHomeDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Show mood filter chips", style = MaterialTheme.typography.bodyMedium)
+                    Text("Show mood filter chips", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     Switch(
                         checked = showMoodChips,
                         onCheckedChange = onToggleMoodChips,
@@ -539,7 +609,7 @@ fun EditHomeDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Artwork atmospheric backdrop", style = MaterialTheme.typography.bodyMedium)
+                    Text("Artwork atmospheric backdrop", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     Switch(
                         checked = showHeroBackdrop,
                         onCheckedChange = onToggleHeroBackdrop,
@@ -547,11 +617,15 @@ fun EditHomeDialog(
                     )
                 }
                 if (shortcuts.isNotEmpty()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Text("Pinned Shortcuts", style = MaterialTheme.typography.labelLarge)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Text("Pinned Shortcuts", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     LazyColumn(modifier = Modifier.height(160.dp)) {
                         items(shortcuts, key = { it.id }) { sc ->
                             ListItem(
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                    headlineColor = MaterialTheme.colorScheme.onSurface
+                                ),
                                 headlineContent = { Text(sc.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 trailingContent = {
                                     TextButton(onClick = { onRemoveShortcut(sc.id) }) {

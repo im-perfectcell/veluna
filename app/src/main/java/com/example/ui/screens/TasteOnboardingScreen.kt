@@ -69,7 +69,15 @@ import com.example.model.TasteProfile
 import com.example.model.TasteSeed
 import com.example.ui.components.ArtWashBackdrop
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
+import com.example.ui.theme.velunaInputChipColors
+import com.example.ui.theme.velunaOutlinedFieldColors
+import com.example.ui.theme.velunaPrimaryButtonColors
 import com.example.ui.viewmodel.OnboardingSearchUiState
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -105,73 +113,77 @@ fun TasteOnboardingScreen(
 
     val totalSelected = selectedGenres.size + selectedArtists.size + selectedSongs.size
 
-    Box(
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("taste_onboarding_screen")
     ) {
-        ArtWashBackdrop(
-            artworkUrl = selectedSongs.lastOrNull()?.thumbnail ?: selectedArtists.lastOrNull()?.thumbnail,
-            accentColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.fillMaxSize()
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            ArtWashBackdrop(
+                artworkUrl = selectedSongs.lastOrNull()?.thumbnail ?: selectedArtists.lastOrNull()?.thumbnail,
+                accentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxSize()
+            )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header bar with Skip
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 720.dp)
-                    .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Header bar with Skip
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 720.dp)
+                        .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_veluna_mark_art),
-                        contentDescription = "Veluna",
-                        contentScale = ContentScale.Crop,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_veluna_mark_art),
+                            contentDescription = "Veluna",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (canNavigateBack) "Tune Music Taste" else "Welcome to Veluna",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Personalize your Home & Smart Autoplay",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onSkip,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = if (canNavigateBack) "Tune Music Taste" else "Welcome to Veluna",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Personalize your Home & Smart Autoplay",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                            .heightIn(min = 48.dp)
+                            .testTag("onboarding_skip_btn")
+                    ) {
+                        Text(if (canNavigateBack) "Cancel" else "Skip", maxLines = 1, softWrap = false)
                     }
                 }
-
-                TextButton(
-                    onClick = onSkip,
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("onboarding_skip_btn")
-                ) {
-                    Text(if (canNavigateBack) "Cancel" else "Skip", maxLines = 1, softWrap = false)
-                }
-            }
 
             // Main scrollable body
             LazyColumn(
@@ -187,7 +199,8 @@ fun TasteOnboardingScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "Add Favorite Artists & Songs",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         OutlinedTextField(
                             value = searchState.query,
@@ -212,6 +225,7 @@ fun TasteOnboardingScreen(
                                     }
                                 }
                             },
+                            colors = velunaOutlinedFieldColors(),
                             singleLine = true,
                             shape = MaterialTheme.shapes.large,
                             modifier = Modifier
@@ -237,10 +251,13 @@ fun TasteOnboardingScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                val chipColors = velunaInputChipColors()
                                 selectedArtists.forEach { artist ->
                                     InputChip(
                                         selected = true,
                                         onClick = { selectedArtists.removeAll { it.id == artist.id } },
+                                        colors = chipColors,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                         label = { Text(artist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         trailingIcon = {
                                             Icon(Icons.Rounded.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
@@ -251,6 +268,8 @@ fun TasteOnboardingScreen(
                                     InputChip(
                                         selected = true,
                                         onClick = { selectedSongs.removeAll { it.id == song.id } },
+                                        colors = chipColors,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                         label = { Text(song.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         trailingIcon = {
                                             Icon(Icons.Rounded.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
@@ -326,6 +345,7 @@ fun TasteOnboardingScreen(
                                         Text(
                                             text = artist.title,
                                             style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onBackground,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             textAlign = TextAlign.Center
@@ -348,13 +368,20 @@ fun TasteOnboardingScreen(
                     items(searchState.songs, key = { "onb_song_${it.id}" }) { song ->
                         val picked = selectedSongs.any { it.id == song.id }
                         val containerColor by animateColorAsState(
-                            targetValue = if (picked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceContainer,
+                            targetValue = if (picked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                             animationSpec = VelunaMotion.snappySpring(),
                             label = "song_pick_bg"
                         )
+                        val titleColor = if (picked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        val subtitleColor = if (picked) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
                         Surface(
                             color = containerColor,
+                            contentColor = titleColor,
                             shape = MaterialTheme.shapes.medium,
+                            border = BorderStroke(
+                                1.dp,
+                                if (picked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 56.dp)
@@ -389,6 +416,7 @@ fun TasteOnboardingScreen(
                                     Text(
                                         text = song.title,
                                         style = MaterialTheme.typography.titleSmall,
+                                        color = titleColor,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -396,7 +424,7 @@ fun TasteOnboardingScreen(
                                         Text(
                                             text = song.subtitle,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = subtitleColor,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -417,7 +445,8 @@ fun TasteOnboardingScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "Pick Your Favorite Genres",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
                             text = "Select 2 or more vibes to bootstrap your recommendations.",
@@ -429,6 +458,7 @@ fun TasteOnboardingScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            val filterChipColors = velunaFilterChipColors()
                             TasteEngine.AVAILABLE_GENRES.forEach { genre ->
                                 val selected = genre.id in selectedGenres
                                 FilterChip(
@@ -437,6 +467,8 @@ fun TasteOnboardingScreen(
                                         if (selected) selectedGenres.remove(genre.id)
                                         else selectedGenres.add(genre.id)
                                     },
+                                    colors = filterChipColors,
+                                    border = velunaFilterChipBorder(selected),
                                     label = { Text(genre.label, maxLines = 1, softWrap = false) },
                                     modifier = Modifier
                                         .heightIn(min = 48.dp)
@@ -450,9 +482,11 @@ fun TasteOnboardingScreen(
 
             // Sticky Bottom CTA Bar
             Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = 6.dp,
                 shadowElevation = 10.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -467,6 +501,7 @@ fun TasteOnboardingScreen(
                         Text(
                             text = if (totalSelected == 0) "Select genres, artists, or songs" else "$totalSelected taste seed(s) picked",
                             style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -481,6 +516,7 @@ fun TasteOnboardingScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(
                         enabled = totalSelected > 0,
+                        colors = velunaPrimaryButtonColors(),
                         onClick = {
                             onSave(
                                 selectedGenres.toList(),
@@ -498,6 +534,7 @@ fun TasteOnboardingScreen(
                     }
                 }
             }
+        }
         }
     }
 }

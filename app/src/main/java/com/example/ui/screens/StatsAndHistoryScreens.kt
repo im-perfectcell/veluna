@@ -60,7 +60,10 @@ import com.example.ui.components.MediaSquareCard
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.foundation.BorderStroke
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
 import com.example.ui.viewmodel.StatsUiState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,6 +106,7 @@ fun StatsScreen(
                     Text(
                         text = "Listening Stats",
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -117,6 +121,7 @@ fun StatsScreen(
                     }
                 }
 
+                val chipColors = velunaFilterChipColors()
                 Row(
                     modifier = Modifier
                         .horizontalScroll(rememberScrollState())
@@ -124,9 +129,12 @@ fun StatsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatsRange.entries.forEach { r ->
+                        val selected = state.range == r
                         FilterChip(
-                            selected = state.range == r,
+                            selected = selected,
                             onClick = { onSelectRange(r) },
+                            colors = chipColors,
+                            border = velunaFilterChipBorder(selected),
                             label = { Text(r.label, maxLines = 1, softWrap = false) },
                             modifier = Modifier.testTag("stats_range_${r.name.lowercase()}")
                         )
@@ -190,13 +198,19 @@ fun StatsScreen(
                     item {
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                             shape = MaterialTheme.shapes.large,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Daily Activity", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    text = "Daily Activity",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 DailyBarChart(series = summary.dailySeries)
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -224,13 +238,19 @@ fun StatsScreen(
                 item {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                         shape = MaterialTheme.shapes.large,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Listening Clock (Sun–Sat • 24h)", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = "Listening Clock (Sun–Sat • 24h)",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                             WeekdayHourHeatmap(cells = summary.hourlyHeatmap)
                         }
@@ -315,6 +335,8 @@ private fun StatKpiCard(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         shape = MaterialTheme.shapes.medium,
         modifier = modifier
     ) {
@@ -327,7 +349,12 @@ private fun StatKpiCard(
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1)
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
             Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -461,11 +488,16 @@ fun HistoryScreen(
                     onClick = onBack,
                     modifier = Modifier.size(48.dp).testTag("history_back_btn")
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
                 }
                 Text(
                     text = "Listening History",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -503,7 +535,13 @@ fun HistoryScreen(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        text = song.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                     Text(song.artists, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Text(

@@ -70,6 +70,11 @@ import com.example.data.local.UserPrefsRepository
 import com.example.model.EqualizerPresets
 import com.example.model.SongItem
 import com.example.playback.PlaybackPositionState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.AssistChipDefaults
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
+import com.example.ui.theme.velunaSliderColors
 import com.example.ui.viewmodel.CommentsUiState
 import com.example.ui.viewmodel.LyricsUiState
 import kotlinx.coroutines.flow.StateFlow
@@ -101,6 +106,12 @@ fun SyncedLyricsPanel(
             Box {
                 AssistChip(
                     onClick = { providerMenuOpen = true },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        leadingIconContentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     label = {
                         Text(
                             text = data?.source ?: "Source",
@@ -320,7 +331,11 @@ fun QueuePanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Up Next", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "Up Next",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
                 if (!sourceName.isNullOrBlank()) {
                     Text(
                         text = "Playing from $sourceName",
@@ -403,7 +418,11 @@ fun QueuePanel(
                                     .size(48.dp)
                                     .testTag("queue_remove_${idx}")
                             ) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Remove from queue")
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove from queue",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         } else {
                             Icon(
@@ -465,7 +484,9 @@ fun CommentsPanel(
                 }
                 items(state.page.comments, key = { it.id }) { comment ->
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
                         shape = MaterialTheme.shapes.medium
                     ) {
                         Row(
@@ -486,6 +507,7 @@ fun CommentsPanel(
                                     Text(
                                         text = comment.author,
                                         style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -507,7 +529,8 @@ fun CommentsPanel(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = comment.text,
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 if (!comment.likeCount.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(6.dp))
@@ -545,6 +568,8 @@ fun EqualizerBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.testTag("equalizer_sheet")
     ) {
         Column(
@@ -560,7 +585,11 @@ fun EqualizerBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("10-Band Equalizer", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    text = "10-Band Equalizer",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Switch(
                     checked = enabled,
                     onCheckedChange = onToggleEnabled,
@@ -573,7 +602,11 @@ fun EqualizerBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Loudness Normalization", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Loudness Normalization",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Switch(
                     checked = loudnessNormEnabled,
                     onCheckedChange = onToggleLoudness,
@@ -581,14 +614,18 @@ fun EqualizerBottomSheet(
                 )
             }
 
+            val chipColors = velunaFilterChipColors()
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 EqualizerPresets.presets.keys.forEach { name ->
+                    val selected = presetName == name
                     FilterChip(
-                        selected = presetName == name,
+                        selected = selected,
                         onClick = { onSelectPreset(name) },
+                        colors = chipColors,
+                        border = velunaFilterChipBorder(selected),
                         label = { Text(name) },
                         modifier = Modifier.testTag("eq_preset_${name.lowercase().replace(' ', '_')}")
                     )
@@ -604,6 +641,7 @@ fun EqualizerBottomSheet(
                     Text(
                         text = "${hzLabel}Hz",
                         style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.width(56.dp)
                     )
                     Slider(
@@ -611,6 +649,7 @@ fun EqualizerBottomSheet(
                         onValueChange = { onBandChange(idx, it) },
                         valueRange = -12f..12f,
                         enabled = enabled,
+                        colors = velunaSliderColors(enabled),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("eq_band_slider_$idx")
@@ -618,6 +657,7 @@ fun EqualizerBottomSheet(
                     Text(
                         text = "${value.roundToInt()} dB",
                         style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.End,
                         modifier = Modifier.width(48.dp)
                     )

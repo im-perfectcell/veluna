@@ -52,6 +52,7 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
@@ -98,6 +99,8 @@ import com.example.ui.navigation.PlaylistRoute
 import com.example.ui.navigation.SearchRoute
 import com.example.ui.navigation.SettingsRoute
 import com.example.ui.navigation.StatsRoute
+import com.example.ui.theme.velunaNavBarItemColors
+import com.example.ui.theme.velunaNavRailItemColors
 import com.example.ui.navigation.VelunaTopTab
 import com.example.ui.screens.AlbumDetailScreen
 import com.example.ui.screens.ArtistDetailScreen
@@ -342,8 +345,15 @@ fun VelunaApp(
             else -> VelunaTopTab.HOME
         }
 
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxSize()
+        ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.onBackground,
                 contentWindowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Horizontal + WindowInsetsSides.Top
                 ),
@@ -878,6 +888,7 @@ fun VelunaApp(
                 )
             }
         }
+        }
     }
 }
 
@@ -888,14 +899,17 @@ private fun VelunaBottomNavBar(
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.testTag("bottom_nav_bar")
     ) {
+        val navColors = velunaNavBarItemColors()
         VelunaTopTab.entries.forEach { tab ->
             val selected = selectedTab == tab
             val icon = tabIcon(tab, selected)
             NavigationBarItem(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
+                colors = navColors,
                 icon = { Icon(icon, contentDescription = tab.label) },
                 label = { Text(tab.label, maxLines = 1, softWrap = false) },
                 modifier = Modifier.testTag("nav_item_${tab.name.lowercase()}")
@@ -912,14 +926,17 @@ private fun VelunaNavRail(
 ) {
     NavigationRail(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.testTag("side_nav_rail")
     ) {
+        val railColors = velunaNavRailItemColors()
         VelunaTopTab.entries.forEach { tab ->
             val selected = selectedTab == tab
             val icon = tabIcon(tab, selected)
             NavigationRailItem(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
+                colors = railColors,
                 icon = { Icon(icon, contentDescription = tab.label) },
                 label = { Text(tab.label, maxLines = 1, softWrap = false) },
                 modifier = Modifier.testTag("rail_item_${tab.name.lowercase()}")

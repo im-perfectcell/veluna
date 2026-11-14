@@ -63,7 +63,14 @@ import com.example.model.DownloadStatus
 import com.example.model.SongItem
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
+import com.example.ui.theme.velunaOutlinedButtonBorder
+import com.example.ui.theme.velunaOutlinedButtonColors
+import com.example.ui.theme.velunaPrimaryButtonColors
 
 @Composable
 fun LibraryScreen(
@@ -122,12 +129,15 @@ fun LibraryScreen(
                 Text(
                     text = "Your Library",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedButton(
                     onClick = onOpenImportPlaylist,
+                    colors = velunaOutlinedButtonColors(),
+                    border = velunaOutlinedButtonBorder(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     modifier = Modifier
                         .heightIn(min = 48.dp)
@@ -139,6 +149,7 @@ fun LibraryScreen(
                 }
                 Button(
                     onClick = onOpenCreatePlaylist,
+                    colors = velunaPrimaryButtonColors(),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     modifier = Modifier
                         .heightIn(min = 48.dp)
@@ -151,6 +162,7 @@ fun LibraryScreen(
             }
 
             // Category Filter Chips
+            val chipColors = velunaFilterChipColors()
             Row(
                 modifier = Modifier
                     .horizontalScroll(rememberScrollState())
@@ -158,9 +170,12 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 tabs.forEachIndexed { idx, label ->
+                    val selected = selectedTab == idx
                     FilterChip(
-                        selected = selectedTab == idx,
+                        selected = selected,
                         onClick = { selectedTab = idx },
+                        colors = chipColors,
+                        border = velunaFilterChipBorder(selected),
                         label = { Text(label, maxLines = 1, softWrap = false) },
                         modifier = Modifier.testTag("library_tab_${label.lowercase().replace(' ', '_')}")
                     )
@@ -183,6 +198,11 @@ fun LibraryScreen(
                         ) {
                             items(playlists, key = { it.id }) { pl ->
                                 ListItem(
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent,
+                                        headlineColor = MaterialTheme.colorScheme.onSurface,
+                                        supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
                                     headlineContent = { Text(pl.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     supportingContent = { Text(pl.subtitle.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     leadingContent = {
@@ -253,6 +273,11 @@ fun LibraryScreen(
                             ) {
                                 items(savedAlbums, key = { it.id }) { al ->
                                     ListItem(
+                                        colors = ListItemDefaults.colors(
+                                            containerColor = Color.Transparent,
+                                            headlineColor = MaterialTheme.colorScheme.onSurface,
+                                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
                                         headlineContent = { Text(al.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         supportingContent = { Text(al.subtitle.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         leadingContent = {
@@ -281,6 +306,11 @@ fun LibraryScreen(
                             ) {
                                 items(followedArtists, key = { it.id }) { ar ->
                                     ListItem(
+                                        colors = ListItemDefaults.colors(
+                                            containerColor = Color.Transparent,
+                                            headlineColor = MaterialTheme.colorScheme.onSurface,
+                                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
                                         headlineContent = { Text(ar.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         supportingContent = { Text(ar.subtitle.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         leadingContent = {
@@ -316,6 +346,7 @@ fun LibraryScreen(
                                 items(activeList, key = { "dl_active_${it.videoId}" }) { prog ->
                                     Surface(
                                         color = MaterialTheme.colorScheme.surfaceContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
                                         shape = MaterialTheme.shapes.medium,
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -326,7 +357,7 @@ fun LibraryScreen(
                                                 Icon(Icons.Rounded.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                    Text(prog.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    Text(prog.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                     Text(prog.error ?: prog.status.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
                                             }
@@ -364,7 +395,7 @@ fun LibraryScreen(
                                             onClick = { onDeleteDownload(song.videoId) },
                                             modifier = Modifier.size(48.dp)
                                         ) {
-                                            Icon(Icons.Rounded.Delete, contentDescription = "Delete download")
+                                            Icon(Icons.Rounded.Delete, contentDescription = "Delete download", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                     }
                                 }
@@ -386,6 +417,8 @@ fun LibraryScreen(
                                 ) {
                                     OutlinedButton(
                                         onClick = { pickFilesLauncher.launch(arrayOf("audio/*")) },
+                                        colors = velunaOutlinedButtonColors(),
+                                        border = velunaOutlinedButtonBorder(),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                                         modifier = Modifier
                                             .weight(1f)
@@ -398,6 +431,7 @@ fun LibraryScreen(
                                     }
                                     Button(
                                         onClick = { pickFolderLauncher.launch(null) },
+                                        colors = velunaPrimaryButtonColors(),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                                         modifier = Modifier
                                             .weight(1f)
@@ -443,7 +477,7 @@ fun LibraryScreen(
                                             onClick = { song.localUri?.let(onRemoveLocalTrack) },
                                             modifier = Modifier.size(48.dp)
                                         ) {
-                                            Icon(Icons.Rounded.Delete, contentDescription = "Remove local track")
+                                            Icon(Icons.Rounded.Delete, contentDescription = "Remove local track", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                     }
                                 }
@@ -479,6 +513,8 @@ private fun PlayShuffleHeader(
         )
         OutlinedButton(
             onClick = onShuffleAll,
+            colors = velunaOutlinedButtonColors(),
+            border = velunaOutlinedButtonBorder(),
             modifier = Modifier.heightIn(min = 48.dp)
         ) {
             Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -487,6 +523,7 @@ private fun PlayShuffleHeader(
         }
         Button(
             onClick = onPlayAll,
+            colors = velunaPrimaryButtonColors(),
             modifier = Modifier.heightIn(min = 48.dp)
         ) {
             Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -505,7 +542,12 @@ private fun EmptyLibraryNotice(title: String, body: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
             Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
     }

@@ -47,7 +47,12 @@ import com.example.ui.components.MoodGridTile
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaOutlinedFieldColors
 import com.example.ui.viewmodel.SearchUiState
 
 @Composable
@@ -92,6 +97,7 @@ fun SearchScreen(
                         }
                     }
                 },
+                colors = velunaOutlinedFieldColors(),
                 singleLine = true,
                 shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -118,12 +124,24 @@ fun SearchScreen(
                     val tabs = listOf("Top", "Songs", "Videos", "Albums", "Artists", "Playlists")
                     ScrollableTabRow(
                         selectedTabIndex = state.selectedCategoryTab,
-                        edgePadding = 12.dp
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        edgePadding = 12.dp,
+                        indicator = { tabPositions ->
+                            if (state.selectedCategoryTab < tabPositions.size) {
+                                TabRowDefaults.SecondaryIndicator(
+                                    modifier = Modifier.tabIndicatorOffset(tabPositions[state.selectedCategoryTab]),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     ) {
                         tabs.forEachIndexed { idx, label ->
                             Tab(
                                 selected = state.selectedCategoryTab == idx,
                                 onClick = { onSelectCategory(idx) },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 text = { Text(label, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.testTag("search_tab_${label.lowercase()}")
                             )
@@ -163,6 +181,11 @@ fun SearchScreen(
                                     )
                                 } else {
                                     ListItem(
+                                        colors = ListItemDefaults.colors(
+                                            containerColor = Color.Transparent,
+                                            headlineColor = MaterialTheme.colorScheme.onSurface,
+                                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
                                         headlineContent = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         supportingContent = {
                                             Text(
@@ -200,6 +223,12 @@ fun SearchScreen(
                     ) {
                         items(state.suggestions.queries, key = { "sug_$it" }) { suggestion ->
                             ListItem(
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                    headlineColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 headlineContent = { Text(suggestion, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 leadingContent = { Icon(Icons.Rounded.Search, contentDescription = null) },
                                 trailingContent = {
@@ -229,6 +258,11 @@ fun SearchScreen(
                                 )
                             } else {
                                 ListItem(
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent,
+                                        headlineColor = MaterialTheme.colorScheme.onSurface,
+                                        supportingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
                                     headlineContent = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     supportingContent = { Text(item.subtitle.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     leadingContent = {
@@ -262,11 +296,21 @@ fun SearchScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Recent searches", style = MaterialTheme.typography.titleMedium)
+                                        Text(
+                                            text = "Recent searches",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
                                         TextButton(onClick = onClearHistory) { Text("Clear all", maxLines = 1, softWrap = false) }
                                     }
                                     searchHistory.take(6).forEach { hist ->
                                         ListItem(
+                                            colors = ListItemDefaults.colors(
+                                                containerColor = Color.Transparent,
+                                                headlineColor = MaterialTheme.colorScheme.onSurface,
+                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
                                             headlineContent = { Text(hist, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingContent = { Icon(Icons.Rounded.History, contentDescription = null) },
                                             trailingContent = {

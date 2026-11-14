@@ -58,7 +58,10 @@ import com.example.ui.components.SectionHeading
 import com.example.ui.components.ShortcutTile
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
+import androidx.compose.foundation.BorderStroke
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaFilterChipBorder
+import com.example.ui.theme.velunaFilterChipColors
 import com.example.ui.viewmodel.HomeUiState
 import java.time.LocalTime
 
@@ -161,7 +164,11 @@ fun HomeScreen(
                                 .size(48.dp)
                                 .testTag("home_history_btn")
                         ) {
-                            Icon(Icons.Rounded.History, contentDescription = "Listening history")
+                            Icon(
+                                imageVector = Icons.Rounded.History,
+                                contentDescription = "Listening history",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
                         }
                         IconButton(
                             onClick = onOpenEditHome,
@@ -169,7 +176,11 @@ fun HomeScreen(
                                 .size(48.dp)
                                 .testTag("home_customize_btn")
                         ) {
-                            Icon(Icons.Rounded.Tune, contentDescription = "Customize home")
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = "Customize home",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
                         }
                         IconButton(
                             onClick = {
@@ -200,7 +211,7 @@ fun HomeScreen(
                                     tint = if (cloudAuthState.isSignedIn) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.onBackground
                                     }
                                 )
                             }
@@ -212,25 +223,32 @@ fun HomeScreen(
             // Mood Filter Chips
             if (prefs.showMoodChips && homeState.homePage.chips.isNotEmpty()) {
                 item {
+                    val chipColors = velunaFilterChipColors()
+                    val allSelected = homeState.selectedChipParams == null && homeState.moodsTitle == null
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
                             FilterChip(
-                                selected = homeState.selectedChipParams == null && homeState.moodsTitle == null,
+                                selected = allSelected,
                                 onClick = { onSelectChip(null) },
+                                colors = chipColors,
+                                border = velunaFilterChipBorder(allSelected),
                                 label = { Text("All", maxLines = 1, softWrap = false) },
                                 modifier = Modifier.testTag("home_chip_all")
                             )
                         }
                         items(homeState.homePage.chips, key = { "${it.title}_${it.params}" }) { chip ->
+                            val chipSelected = homeState.selectedChipParams == chip.params && chip.params.isNotBlank()
                             FilterChip(
-                                selected = homeState.selectedChipParams == chip.params && chip.params.isNotBlank(),
+                                selected = chipSelected,
                                 onClick = {
                                     if (chip.params.isNotBlank()) onSelectChip(chip.params)
                                     else onSelectChip(null)
                                 },
+                                colors = chipColors,
+                                border = velunaFilterChipBorder(chipSelected),
                                 label = { Text(chip.title, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.testTag("home_chip_${chip.title.lowercase().replace(' ', '_')}")
                             )
@@ -329,6 +347,8 @@ fun HomeScreen(
                 item {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -341,7 +361,8 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = "Could not load online feed",
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = homeState.error,

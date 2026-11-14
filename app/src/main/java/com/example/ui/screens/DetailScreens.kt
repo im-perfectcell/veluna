@@ -77,6 +77,10 @@ import com.example.ui.components.SectionHeading
 import com.example.ui.components.TrackRow
 import com.example.ui.components.VelunaArtwork
 import com.example.ui.theme.VelunaMotion
+import com.example.ui.theme.velunaOutlinedButtonBorder
+import com.example.ui.theme.velunaOutlinedButtonColors
+import com.example.ui.theme.velunaOutlinedFieldColors
+import com.example.ui.theme.velunaPrimaryButtonColors
 import com.example.ui.viewmodel.AlbumDetailState
 import com.example.ui.viewmodel.ArtistDetailState
 import com.example.ui.viewmodel.PlaylistDetailState
@@ -130,6 +134,7 @@ fun AlbumDetailScreen(
                             Text(
                                 text = album.title,
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground,
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -166,6 +171,7 @@ fun AlbumDetailScreen(
                                 Button(
                                     enabled = album.items.isNotEmpty(),
                                     onClick = { onPlayTracks(album.items, 0, album.title) },
+                                    colors = velunaPrimaryButtonColors(),
                                     modifier = Modifier.heightIn(min = 48.dp).testTag("album_play_btn")
                                 ) {
                                     Icon(Icons.Rounded.PlayArrow, contentDescription = null)
@@ -175,6 +181,8 @@ fun AlbumDetailScreen(
                                 OutlinedButton(
                                     enabled = album.items.isNotEmpty(),
                                     onClick = { onPlayTracks(album.items.shuffled(), 0, album.title) },
+                                    colors = velunaOutlinedButtonColors(),
+                                    border = velunaOutlinedButtonBorder(album.items.isNotEmpty()),
                                     modifier = Modifier.heightIn(min = 48.dp).testTag("album_shuffle_btn")
                                 ) {
                                     Icon(Icons.Rounded.Shuffle, contentDescription = null)
@@ -188,7 +196,7 @@ fun AlbumDetailScreen(
                                     Icon(
                                         imageVector = if (isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                                         contentDescription = if (isSaved) "Remove album" else "Save album",
-                                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                                     )
                                 }
                                 IconButton(
@@ -199,7 +207,11 @@ fun AlbumDetailScreen(
                                     },
                                     modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(Icons.Rounded.PushPin, contentDescription = "Pin shortcut")
+                                    Icon(
+                                        imageVector = Icons.Rounded.PushPin,
+                                        contentDescription = "Pin shortcut",
+                                        tint = MaterialTheme.colorScheme.onBackground
+                                    )
                                 }
                             }
                         }
@@ -280,6 +292,7 @@ fun ArtistDetailScreen(
                             Text(
                                 text = artist.name,
                                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground,
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -303,6 +316,7 @@ fun ArtistDetailScreen(
                                 if (artist.topSongs.isNotEmpty()) {
                                     Button(
                                         onClick = { onPlayTracks(artist.topSongs, 0, artist.name) },
+                                        colors = velunaPrimaryButtonColors(),
                                         modifier = Modifier.heightIn(min = 48.dp).testTag("artist_play_btn")
                                     ) {
                                         Icon(Icons.Rounded.PlayArrow, contentDescription = null)
@@ -315,6 +329,8 @@ fun ArtistDetailScreen(
                                         onClick = {
                                             onOpenBrowseItem(BrowseItem(BrowseKind.PLAYLIST, artist.radioPlaylistId, "${artist.name} Radio"))
                                         },
+                                        colors = velunaOutlinedButtonColors(),
+                                        border = velunaOutlinedButtonBorder(),
                                         modifier = Modifier.heightIn(min = 48.dp)
                                     ) {
                                         Icon(Icons.Rounded.Radio, contentDescription = null)
@@ -324,6 +340,8 @@ fun ArtistDetailScreen(
                                 }
                                 OutlinedButton(
                                     onClick = onToggleFollow,
+                                    colors = velunaOutlinedButtonColors(),
+                                    border = velunaOutlinedButtonBorder(),
                                     modifier = Modifier.heightIn(min = 48.dp).testTag("artist_follow_btn")
                                 ) {
                                     Icon(
@@ -341,7 +359,11 @@ fun ArtistDetailScreen(
                                     },
                                     modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(Icons.Rounded.PushPin, contentDescription = "Pin shortcut")
+                                    Icon(
+                                        imageVector = Icons.Rounded.PushPin,
+                                        contentDescription = "Pin shortcut",
+                                        tint = MaterialTheme.colorScheme.onBackground
+                                    )
                                 }
                             }
                         }
@@ -458,7 +480,11 @@ fun PlaylistDetailScreen(
                                         onClick = { menuExpanded = true },
                                         modifier = Modifier.size(48.dp).testTag("playlist_more_btn")
                                     ) {
-                                        Icon(Icons.Rounded.MoreVert, contentDescription = "Playlist menu")
+                                        Icon(
+                                            imageVector = Icons.Rounded.MoreVert,
+                                            contentDescription = "Playlist menu",
+                                            tint = MaterialTheme.colorScheme.onBackground
+                                        )
                                     }
                                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                                         DropdownMenuItem(
@@ -530,6 +556,7 @@ fun PlaylistDetailScreen(
                             Text(
                                 text = page.title,
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground,
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -563,6 +590,7 @@ fun PlaylistDetailScreen(
                                 Button(
                                     enabled = displayedTracks.isNotEmpty(),
                                     onClick = { onPlayTracks(displayedTracks, 0, page.title) },
+                                    colors = velunaPrimaryButtonColors(),
                                     modifier = Modifier.heightIn(min = 48.dp).testTag("playlist_play_btn")
                                 ) {
                                     Icon(Icons.Rounded.PlayArrow, contentDescription = null)
@@ -572,6 +600,8 @@ fun PlaylistDetailScreen(
                                 OutlinedButton(
                                     enabled = displayedTracks.isNotEmpty(),
                                     onClick = { onPlayTracks(displayedTracks.shuffled(), 0, page.title) },
+                                    colors = velunaOutlinedButtonColors(),
+                                    border = velunaOutlinedButtonBorder(displayedTracks.isNotEmpty()),
                                     modifier = Modifier.heightIn(min = 48.dp).testTag("playlist_shuffle_btn")
                                 ) {
                                     Icon(Icons.Rounded.Shuffle, contentDescription = null)
@@ -593,12 +623,15 @@ fun PlaylistDetailScreen(
                                 onValueChange = onFilterChange,
                                 placeholder = { Text("Filter tracks…", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                                colors = velunaOutlinedFieldColors(),
                                 singleLine = true,
                                 modifier = Modifier.weight(1f).testTag("playlist_filter_input")
                             )
                             Box {
                                 OutlinedButton(
                                     onClick = { sortExpanded = true },
+                                    colors = velunaOutlinedButtonColors(),
+                                    border = velunaOutlinedButtonBorder(),
                                     modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
                                     Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -693,7 +726,11 @@ private fun DetailTopBar(
             onClick = onBack,
             modifier = Modifier.size(48.dp).testTag("detail_back_btn")
         ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onBackground
+            )
         }
         actions()
     }

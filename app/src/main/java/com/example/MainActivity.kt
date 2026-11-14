@@ -10,28 +10,43 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Home
@@ -45,8 +60,6 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -63,13 +76,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -99,7 +123,6 @@ import com.example.ui.navigation.PlaylistRoute
 import com.example.ui.navigation.SearchRoute
 import com.example.ui.navigation.SettingsRoute
 import com.example.ui.navigation.StatsRoute
-import com.example.ui.theme.velunaNavBarItemColors
 import com.example.ui.theme.velunaNavRailItemColors
 import com.example.ui.navigation.VelunaTopTab
 import com.example.ui.screens.AlbumDetailScreen
@@ -438,19 +461,39 @@ fun VelunaApp(
                         navController = navController,
                         startDestination = HomeRoute,
                         enterTransition = {
-                            slideInHorizontally(
-                                animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
-                                initialOffsetX = { (it * 0.08f).toInt() }
-                            ) + scaleIn(
-                                animationSpec = VelunaMotion.snappySpring(),
-                                initialScale = 0.985f
-                            ) + fadeIn(VelunaMotion.fastFade())
+                            val fromIdx = initialState.destination.topTabIndex()
+                            val toIdx = targetState.destination.topTabIndex()
+                            if (fromIdx != null && toIdx != null) {
+                                val forward = toIdx >= fromIdx
+                                slideInHorizontally(
+                                    animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                    initialOffsetX = { if (forward) (it * 0.12f).toInt() else -(it * 0.12f).toInt() }
+                                ) + fadeIn(VelunaMotion.fastFade())
+                            } else {
+                                slideInHorizontally(
+                                    animationSpec = VelunaMotion.expressiveIntOffsetSpring(),
+                                    initialOffsetX = { (it * 0.08f).toInt() }
+                                ) + scaleIn(
+                                    animationSpec = VelunaMotion.snappySpring(),
+                                    initialScale = 0.985f
+                                ) + fadeIn(VelunaMotion.fastFade())
+                            }
                         },
                         exitTransition = {
-                            slideOutHorizontally(
-                                animationSpec = VelunaMotion.snappyIntOffsetSpring(),
-                                targetOffsetX = { -(it * 0.05f).toInt() }
-                            ) + fadeOut(VelunaMotion.fastFade())
+                            val fromIdx = initialState.destination.topTabIndex()
+                            val toIdx = targetState.destination.topTabIndex()
+                            if (fromIdx != null && toIdx != null) {
+                                val forward = toIdx >= fromIdx
+                                slideOutHorizontally(
+                                    animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                    targetOffsetX = { if (forward) -(it * 0.08f).toInt() else (it * 0.08f).toInt() }
+                                ) + fadeOut(VelunaMotion.fastFade())
+                            } else {
+                                slideOutHorizontally(
+                                    animationSpec = VelunaMotion.snappyIntOffsetSpring(),
+                                    targetOffsetX = { -(it * 0.05f).toInt() }
+                                ) + fadeOut(VelunaMotion.fastFade())
+                            }
                         },
                         popEnterTransition = {
                             slideInHorizontally(
@@ -897,23 +940,141 @@ private fun VelunaBottomNavBar(
     selectedTab: VelunaTopTab,
     onSelectTab: (VelunaTopTab) -> Unit
 ) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.testTag("bottom_nav_bar")
+    val capsuleShape = RoundedCornerShape(30.dp)
+    val pillShape = RoundedCornerShape(24.dp)
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp)
     ) {
-        val navColors = velunaNavBarItemColors()
-        VelunaTopTab.entries.forEach { tab ->
-            val selected = selectedTab == tab
-            val icon = tabIcon(tab, selected)
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onSelectTab(tab) },
-                colors = navColors,
-                icon = { Icon(icon, contentDescription = tab.label) },
-                label = { Text(tab.label, maxLines = 1, softWrap = false) },
-                modifier = Modifier.testTag("nav_item_${tab.name.lowercase()}")
-            )
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = capsuleShape,
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp,
+            border = BorderStroke(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.36f),
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+                )
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
+                .testTag("bottom_nav_bar")
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
+            ) {
+                VelunaTopTab.entries.forEach { tab ->
+                    val selected = selectedTab == tab
+                    val icon = tabIcon(tab, selected)
+
+                    val slotWeight by animateFloatAsState(
+                        targetValue = if (selected) 2.05f else 1f,
+                        animationSpec = VelunaMotion.expressiveSpatialSpring(),
+                        label = "nav_slot_weight_${tab.name}"
+                    )
+                    val pillColor by animateColorAsState(
+                        targetValue = if (selected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0f)
+                        },
+                        animationSpec = VelunaMotion.snappySpring(),
+                        label = "nav_pill_bg_${tab.name}"
+                    )
+                    val contentTint by animateColorAsState(
+                        targetValue = if (selected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        animationSpec = VelunaMotion.snappySpring(),
+                        label = "nav_pill_fg_${tab.name}"
+                    )
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1.06f else 1f,
+                        animationSpec = VelunaMotion.bouncyScaleSpring(),
+                        label = "nav_icon_scale_${tab.name}"
+                    )
+
+                    Surface(
+                        color = pillColor,
+                        contentColor = contentTint,
+                        shape = pillShape,
+                        border = if (selected) {
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.32f))
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .weight(slotWeight)
+                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .height(48.dp)
+                            .clip(pillShape)
+                            .semantics {
+                                this.selected = selected
+                                role = Role.Tab
+                            }
+                            .clickable(onClick = { onSelectTab(tab) })
+                            .testTag("nav_item_${tab.name.lowercase()}")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = if (selected) 10.dp else 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = tab.label,
+                                tint = contentTint,
+                                modifier = Modifier
+                                    .size(21.dp)
+                                    .scale(iconScale)
+                            )
+                            AnimatedVisibility(
+                                visible = selected,
+                                enter = expandHorizontally(
+                                    animationSpec = VelunaMotion.expressiveSpatialSpring(),
+                                    expandFrom = Alignment.Start
+                                ) + fadeIn(VelunaMotion.fastFade()),
+                                exit = shrinkHorizontally(
+                                    animationSpec = VelunaMotion.snappySpring(),
+                                    shrinkTowards = Alignment.Start
+                                ) + fadeOut(VelunaMotion.fastFade())
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = tab.label,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = contentTint,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -943,6 +1104,15 @@ private fun VelunaNavRail(
             )
         }
     }
+}
+
+private fun NavDestination?.topTabIndex(): Int? = when {
+    this?.hasRoute<HomeRoute>() == true -> VelunaTopTab.HOME.ordinal
+    this?.hasRoute<SearchRoute>() == true -> VelunaTopTab.SEARCH.ordinal
+    this?.hasRoute<LibraryRoute>() == true -> VelunaTopTab.LIBRARY.ordinal
+    this?.hasRoute<StatsRoute>() == true -> VelunaTopTab.STATS.ordinal
+    this?.hasRoute<SettingsRoute>() == true -> VelunaTopTab.SETTINGS.ordinal
+    else -> null
 }
 
 private fun tabIcon(tab: VelunaTopTab, selected: Boolean) = when (tab) {

@@ -1,0 +1,233 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all reads and writes unless explicitly matched below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidServerTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidOptionalString(data, key, maxLen) {
+      return !(key in data) || data[key] == null || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             isValidOptionalString(data, 'email', 200) &&
+             isValidOptionalString(data, 'photoUrl', 500) &&
+             data.themePreset is string && data.themePreset.size() >= 1 && data.themePreset.size() <= 32 &&
+             data.themeMode in ['DARK', 'LIGHT', 'SYSTEM'] &&
+             isValidOptionalString(data, 'customAccentHex', 16) &&
+             data.adaptToArtwork is bool &&
+             data.cornerRadiusDp is int && data.cornerRadiusDp >= 4 && data.cornerRadiusDp <= 24 &&
+             data.audioQuality in ['LOW', 'MEDIUM', 'HIGH'] &&
+             data.autoplay is bool &&
+             data.loudnessNormalization is bool &&
+             data.hideMusicVideos is bool &&
+             data.selectedGenres is list && data.selectedGenres.size() <= 25 &&
+             (data.selectedGenres.size() == 0 || data.selectedGenres[0] is string) &&
+             data.onboardingCompleted is bool &&
+             isValidServerTimestamp(data.createdAt) &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidTasteSeed(data) {
+      return data.kind in ['ARTIST', 'SONG'] &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 160 &&
+             isValidOptionalString(data, 'subtitle', 160) &&
+             isValidOptionalString(data, 'thumbnail', 500) &&
+             isValidServerTimestamp(data.createdAt) &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidLikedSong(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.artists is string && data.artists.size() <= 200 &&
+             isValidOptionalString(data, 'album', 200) &&
+             isValidOptionalString(data, 'albumId', 128) &&
+             isValidOptionalString(data, 'artistId', 128) &&
+             isValidOptionalString(data, 'duration', 24) &&
+             data.durationSecs is int && data.durationSecs >= 0 &&
+             isValidOptionalString(data, 'thumbnail', 500) &&
+             data.explicit is bool &&
+             data.likedAt is int && data.likedAt >= 0 &&
+             isValidServerTimestamp(data.createdAt) &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidSyncedPlaylist(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.description is string && data.description.size() <= 500 &&
+             isValidOptionalString(data, 'coverUri', 500) &&
+             data.tracks is list && data.tracks.size() <= 250 &&
+             (data.tracks.size() == 0 || data.tracks[0] is map) &&
+             data.clientUpdatedAt is int && data.clientUpdatedAt >= 0 &&
+             isValidServerTimestamp(data.createdAt) &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    function isValidHiddenArtist(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 160 &&
+             isValidOptionalString(data, 'channelId', 128) &&
+             data.blockedAt is int && data.blockedAt >= 0 &&
+             isValidServerTimestamp(data.createdAt) &&
+             isValidServerTimestamp(data.updatedAt);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'themePreset', 'themeMode',
+                         'adaptToArtwork', 'cornerRadiusDp', 'audioQuality',
+                         'autoplay', 'loudnessNormalization', 'hideMusicVideos',
+                         'selectedGenres', 'onboardingCompleted', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'email', 'photoUrl', 'themePreset', 'themeMode',
+                         'customAccentHex', 'adaptToArtwork', 'cornerRadiusDp', 'audioQuality',
+                         'autoplay', 'loudnessNormalization', 'hideMusicVideos',
+                         'selectedGenres', 'onboardingCompleted', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'photoUrl', 'themePreset', 'themeMode',
+                         'customAccentHex', 'adaptToArtwork', 'cornerRadiusDp', 'audioQuality',
+                         'autoplay', 'loudnessNormalization', 'hideMusicVideos',
+                         'selectedGenres', 'onboardingCompleted', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /taste_seeds/{seedId} {
+        allow get: if isOwner(userId) && isValidId(seedId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(seedId) &&
+                         incoming().keys().hasAll(['kind', 'name', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['kind', 'name', 'subtitle', 'thumbnail', 'createdAt', 'updatedAt']) &&
+                         isValidTasteSeed(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(seedId) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTasteSeed(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'kind', 'name', 'subtitle', 'thumbnail', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(seedId);
+      }
+
+      match /liked_songs/{videoId} {
+        allow get: if isOwner(userId) && isValidId(videoId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(videoId) &&
+                         incoming().keys().hasAll([
+                           'title', 'artists', 'durationSecs', 'explicit', 'likedAt', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'title', 'artists', 'album', 'albumId', 'artistId', 'duration',
+                           'durationSecs', 'thumbnail', 'explicit', 'likedAt', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidLikedSong(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(videoId) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidLikedSong(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'artists', 'album', 'albumId', 'artistId', 'duration',
+                           'durationSecs', 'thumbnail', 'explicit', 'likedAt', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(videoId);
+      }
+
+      match /playlists/{playlistKey} {
+        allow get: if isOwner(userId) && isValidId(playlistKey);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(playlistKey) &&
+                         incoming().keys().hasAll([
+                           'title', 'description', 'tracks', 'clientUpdatedAt', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'title', 'description', 'coverUri', 'tracks', 'clientUpdatedAt', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidSyncedPlaylist(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(playlistKey) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidSyncedPlaylist(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'description', 'coverUri', 'tracks', 'clientUpdatedAt', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(playlistKey);
+      }
+
+      match /hidden_artists/{artistKey} {
+        allow get: if isOwner(userId) && isValidId(artistKey);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(artistKey) &&
+                         incoming().keys().hasAll(['name', 'blockedAt', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['name', 'channelId', 'blockedAt', 'createdAt', 'updatedAt']) &&
+                         isValidHiddenArtist(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(artistKey) &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidHiddenArtist(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'channelId', 'blockedAt', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(artistKey);
+      }
+    }
+  }
+}

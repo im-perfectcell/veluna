@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Tune
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.cloud.CloudAuthUiState
 import com.example.data.local.VelunaUserPrefs
 import com.example.model.BrowseItem
 import com.example.model.BrowseKind
@@ -54,6 +57,7 @@ import com.example.ui.components.MediaSquareCard
 import com.example.ui.components.SectionHeading
 import com.example.ui.components.ShortcutTile
 import com.example.ui.components.TrackRow
+import com.example.ui.components.VelunaArtwork
 import com.example.ui.theme.VelunaMotion
 import com.example.ui.viewmodel.HomeUiState
 import java.time.LocalTime
@@ -68,6 +72,9 @@ fun HomeScreen(
     nowPlayingSong: SongItem?,
     artworkAccent: Color?,
     likedIds: Set<String> = emptySet(),
+    cloudAuthState: CloudAuthUiState = CloudAuthUiState(),
+    onSignInWithGoogle: () -> Unit = {},
+    onOpenAccountSettings: () -> Unit = {},
     onSelectChip: (String?) -> Unit,
     onRetry: () -> Unit,
     onOpenBrowseItem: (BrowseItem) -> Unit,
@@ -147,7 +154,7 @@ fun HomeScreen(
                         }
                     }
 
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = onOpenHistory,
                             modifier = Modifier
@@ -163,6 +170,40 @@ fun HomeScreen(
                                 .testTag("home_customize_btn")
                         ) {
                             Icon(Icons.Rounded.Tune, contentDescription = "Customize home")
+                        }
+                        IconButton(
+                            onClick = {
+                                if (cloudAuthState.isSignedIn) onOpenAccountSettings()
+                                else onSignInWithGoogle()
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("home_account_btn")
+                        ) {
+                            if (cloudAuthState.isSignedIn && !cloudAuthState.photoUrl.isNullOrBlank()) {
+                                VelunaArtwork(
+                                    url = cloudAuthState.photoUrl,
+                                    contentDescription = "Google account: ${cloudAuthState.displayName ?: "Signed in"}",
+                                    isCircle = true,
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.AccountCircle,
+                                    contentDescription = if (cloudAuthState.isSignedIn) {
+                                        "Account settings"
+                                    } else {
+                                        "Sign in with Google"
+                                    },
+                                    tint = if (cloudAuthState.isSignedIn) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
                         }
                     }
                 }

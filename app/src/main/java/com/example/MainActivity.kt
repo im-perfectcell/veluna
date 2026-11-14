@@ -218,9 +218,14 @@ fun VelunaApp(
     val likedIds by libraryStatsVm.likedVideoIds.collectAsStateWithLifecycle()
     val tasteProfile by homeSearchVm.tasteProfile.collectAsStateWithLifecycle()
     val onboardingSearch by homeSearchVm.onboardingSearch.collectAsStateWithLifecycle()
+    val cloudAuthState by container.cloudSyncCoordinator.authState.collectAsStateWithLifecycle()
 
     val downloadedIds = remember(downloadedTracks) {
         downloadedTracks.map { it.videoId }.toHashSet()
+    }
+
+    LaunchedEffect(Unit) {
+        container.cloudSyncCoordinator.attemptAutoSignInOnLaunch(context)
     }
 
     var requestedNotificationPerm by remember { mutableStateOf(false) }
@@ -255,6 +260,14 @@ fun VelunaApp(
             if (!msg.isNullOrBlank()) {
                 snackbarHostState.showSnackbar(msg)
                 libraryStatsVm.consumeStatusBanner()
+            }
+        }
+
+        LaunchedEffect(cloudAuthState.errorMessage) {
+            val err = cloudAuthState.errorMessage
+            if (!err.isNullOrBlank()) {
+                snackbarHostState.showSnackbar(err)
+                container.cloudSyncCoordinator.clearError()
             }
         }
 
@@ -463,6 +476,9 @@ fun VelunaApp(
                                 nowPlayingSong = playbackState.nowPlaying,
                                 artworkAccent = playbackState.artworkAccentColor,
                                 likedIds = likedIds,
+                                cloudAuthState = cloudAuthState,
+                                onSignInWithGoogle = { container.cloudSyncCoordinator.signIn(context) },
+                                onOpenAccountSettings = { navigateTopTab(VelunaTopTab.SETTINGS) },
                                 onSelectChip = homeSearchVm::loadHome,
                                 onRetry = { homeSearchVm.loadHome(homeState.selectedChipParams) },
                                 onOpenBrowseItem = ::openBrowseItem,
@@ -550,6 +566,10 @@ fun VelunaApp(
                                 prefs = prefs,
                                 blockedArtists = blockedArtists,
                                 tasteProfile = tasteProfile,
+                                cloudAuthState = cloudAuthState,
+                                onSignInWithGoogle = { container.cloudSyncCoordinator.signIn(context) },
+                                onSignOut = { container.cloudSyncCoordinator.signOut() },
+                                onSyncNow = { container.cloudSyncCoordinator.syncNow() },
                                 onOpenTasteOnboarding = { showTasteEditor = true },
                                 onSetThemePreset = libraryStatsVm::setThemePreset,
                                 onSetThemeMode = libraryStatsVm::setThemeMode,

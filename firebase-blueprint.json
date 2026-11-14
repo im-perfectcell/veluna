@@ -1,0 +1,292 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated listener profile and cloud-synced Veluna preferences.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID owning this profile."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Listener display name shown in greetings and profile."
+        },
+        "email": {
+          "type": "string",
+          "description": "Google account email address."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Google account profile avatar URL."
+        },
+        "themePreset": {
+          "type": "string",
+          "description": "Selected theme preset identifier."
+        },
+        "themeMode": {
+          "type": "string",
+          "enum": ["DARK", "LIGHT", "SYSTEM"],
+          "description": "Preferred light/dark mode."
+        },
+        "customAccentHex": {
+          "type": "string",
+          "description": "Optional custom hex accent override."
+        },
+        "adaptToArtwork": {
+          "type": "boolean",
+          "description": "Whether theme accent adapts to playing artwork."
+        },
+        "cornerRadiusDp": {
+          "type": "integer",
+          "description": "UI corner radius in dp."
+        },
+        "audioQuality": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "description": "Preferred streaming audio quality."
+        },
+        "autoplay": {
+          "type": "boolean",
+          "description": "Autoplay similar tracks."
+        },
+        "loudnessNormalization": {
+          "type": "boolean",
+          "description": "Enable loudness normalization."
+        },
+        "hideMusicVideos": {
+          "type": "boolean",
+          "description": "Prefer audio-only streams over music videos."
+        },
+        "selectedGenres": {
+          "type": "array",
+          "description": "Bounded list of up to 25 selected onboarding genre labels."
+        },
+        "onboardingCompleted": {
+          "type": "boolean",
+          "description": "Whether taste onboarding has been completed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "themePreset",
+        "themeMode",
+        "adaptToArtwork",
+        "cornerRadiusDp",
+        "audioQuality",
+        "autoplay",
+        "loudnessNormalization",
+        "hideMusicVideos",
+        "selectedGenres",
+        "onboardingCompleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TasteSeedDoc": {
+      "title": "TasteSeedDoc",
+      "description": "Cloud-synced favorite artist or song taste seed.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["ARTIST", "SONG"],
+          "description": "Seed category."
+        },
+        "name": {
+          "type": "string",
+          "description": "Artist or song name."
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Optional secondary descriptor."
+        },
+        "thumbnail": {
+          "type": "string",
+          "description": "Optional thumbnail URL."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["kind", "name", "createdAt", "updatedAt"]
+    },
+    "LikedSongDoc": {
+      "title": "LikedSongDoc",
+      "description": "Cloud-synced liked song track metadata.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Track title."
+        },
+        "artists": {
+          "type": "string",
+          "description": "Comma-separated artist names."
+        },
+        "album": {
+          "type": "string",
+          "description": "Album title."
+        },
+        "albumId": {
+          "type": "string",
+          "description": "Album browse identifier."
+        },
+        "artistId": {
+          "type": "string",
+          "description": "Primary artist channel identifier."
+        },
+        "duration": {
+          "type": "string",
+          "description": "Formatted duration label."
+        },
+        "durationSecs": {
+          "type": "integer",
+          "description": "Duration in seconds."
+        },
+        "thumbnail": {
+          "type": "string",
+          "description": "Artwork URL."
+        },
+        "explicit": {
+          "type": "boolean",
+          "description": "Explicit content flag."
+        },
+        "likedAt": {
+          "type": "integer",
+          "description": "Client epoch millis when track was liked."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["title", "artists", "durationSecs", "explicit", "likedAt", "createdAt", "updatedAt"]
+    },
+    "SyncedPlaylistDoc": {
+      "title": "SyncedPlaylistDoc",
+      "description": "Cloud-synced custom user playlist and its bounded ordered tracks.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Playlist title."
+        },
+        "description": {
+          "type": "string",
+          "description": "Playlist description."
+        },
+        "coverUri": {
+          "type": "string",
+          "description": "Optional cover artwork URL."
+        },
+        "tracks": {
+          "type": "array",
+          "description": "Ordered list of up to 250 playlist track maps."
+        },
+        "clientUpdatedAt": {
+          "type": "integer",
+          "description": "Epoch millis of last playlist edit."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["title", "description", "tracks", "clientUpdatedAt", "createdAt", "updatedAt"]
+    },
+    "HiddenArtistDoc": {
+      "title": "HiddenArtistDoc",
+      "description": "Cloud-synced hidden/blocked artist record.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Artist name."
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Optional artist channel identifier."
+        },
+        "blockedAt": {
+          "type": "integer",
+          "description": "Epoch millis when hidden."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["name", "blockedAt", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Authenticated user profile, preferences, and onboarding state."
+    },
+    "/users/{userId}/taste_seeds/{seedId}": {
+      "schema": {
+        "$ref": "#/entities/TasteSeedDoc"
+      },
+      "description": "User-selected favorite artist and song taste seeds."
+    },
+    "/users/{userId}/liked_songs/{videoId}": {
+      "schema": {
+        "$ref": "#/entities/LikedSongDoc"
+      },
+      "description": "Tracks liked by the authenticated user."
+    },
+    "/users/{userId}/playlists/{playlistKey}": {
+      "schema": {
+        "$ref": "#/entities/SyncedPlaylistDoc"
+      },
+      "description": "Custom playlists synced by the authenticated user."
+    },
+    "/users/{userId}/hidden_artists/{artistKey}": {
+      "schema": {
+        "$ref": "#/entities/HiddenArtistDoc"
+      },
+      "description": "Artists hidden from recommendations and autoplay."
+    }
+  }
+}

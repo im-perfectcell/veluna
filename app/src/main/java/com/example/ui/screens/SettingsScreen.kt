@@ -28,15 +28,21 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,6 +70,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.data.cloud.CloudAuthUiState
 import com.example.data.local.BlockedArtistEntity
 import com.example.data.local.UserPrefsRepository
 import com.example.data.local.VelunaUserPrefs
@@ -72,9 +79,13 @@ import com.example.model.LyricsProviderInfo
 import com.example.model.TasteProfile
 import com.example.model.ThemeMode
 import com.example.model.VelunaThemePreset
+import com.example.ui.components.VelunaArtwork
 import com.example.ui.theme.VelunaMotion
 import com.example.ui.theme.parseHexColorOrNull
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -83,6 +94,10 @@ fun SettingsScreen(
     prefs: VelunaUserPrefs,
     blockedArtists: List<BlockedArtistEntity>,
     tasteProfile: TasteProfile? = null,
+    cloudAuthState: CloudAuthUiState = CloudAuthUiState(),
+    onSignInWithGoogle: () -> Unit = {},
+    onSignOut: () -> Unit = {},
+    onSyncNow: () -> Unit = {},
     onOpenTasteOnboarding: () -> Unit = {},
     onSetThemePreset: (VelunaThemePreset) -> Unit,
     onSetThemeMode: (ThemeMode) -> Unit,
@@ -169,9 +184,205 @@ fun SettingsScreen(
                 )
             }
 
-            // Profile
+            // Profile & Google Cloud Sync
             item {
-                SettingsCard(title = "Profile") {
+                SettingsCard(title = "Profile & Cloud Sync") {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                MaterialTheme.shapes.medium
+                            )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (cloudAuthState.isSignedIn) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (!cloudAuthState.photoUrl.isNullOrBlank()) {
+                                        VelunaArtwork(
+                                            url = cloudAuthState.photoUrl,
+                                            contentDescription = cloudAuthState.displayName ?: "Profile picture",
+                                            isCircle = true,
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                    } else {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = CircleShape,
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.AccountCircle,
+                                                    contentDescription = "Google account",
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.size(28.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = cloudAuthState.displayName?.takeIf { it.isNotBlank() }
+                                                ?: prefs.userDisplayName,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (!cloudAuthState.email.isNullOrBlank()) {
+                                            Text(
+                                                text = cloudAuthState.email,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        val syncSubtitle = remember(cloudAuthState.isSyncing, cloudAuthState.lastSyncedAtMs, cloudAuthState.syncStatus) {
+                                            when {
+                                                cloudAuthState.isSyncing -> "Syncing profile, playlists & likes…"
+                                                cloudAuthState.lastSyncedAtMs != null -> {
+                                                    val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                                    "Cloud backup active • Last synced ${fmt.format(Date(cloudAuthState.lastSyncedAtMs))}"
+                                                }
+                                                else -> cloudAuthState.syncStatus ?: "Connected with Google"
+                                            }
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (cloudAuthState.isSyncing) Icons.Rounded.CloudSync else Icons.Rounded.CloudDone,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = syncSubtitle,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onSyncNow,
+                                        enabled = !cloudAuthState.isSyncing && !cloudAuthState.isAuthBusy,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
+                                            .testTag("settings_cloud_sync_btn")
+                                    ) {
+                                        if (cloudAuthState.isSyncing) {
+                                            CircularProgressIndicator(
+                                                strokeWidth = 2.dp,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        } else {
+                                            Icon(Icons.Rounded.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (cloudAuthState.isSyncing) "Syncing…" else "Sync now",
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+
+                                    TextButton(
+                                        onClick = onSignOut,
+                                        enabled = !cloudAuthState.isAuthBusy,
+                                        modifier = Modifier
+                                            .heightIn(min = 48.dp)
+                                            .testTag("settings_google_signout_btn")
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Sign out", maxLines = 1, softWrap = false)
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.AccountCircle,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Google Cloud Sync",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Sign in with Google to sync your profile, playlists, liked songs, and taste across devices.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = onSignInWithGoogle,
+                                    enabled = !cloudAuthState.isAuthBusy,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .testTag("settings_google_signin_btn")
+                                ) {
+                                    if (cloudAuthState.isAuthBusy) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    } else {
+                                        Icon(Icons.AutoMirrored.Rounded.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (cloudAuthState.isAuthBusy) "Signing in…" else "Sign in with Google",
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),

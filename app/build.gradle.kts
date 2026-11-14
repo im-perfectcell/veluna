@@ -1,8 +1,11 @@
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -13,8 +16,8 @@ android {
         applicationId = "com.aistudio.veluna.mxkrtq"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = (project.findProperty("velunaVersionCode") as? String)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("velunaVersionName") as? String)?.takeIf { it.isNotBlank() } ?: "1.0.0"
     }
 
     signingConfigs {
@@ -54,6 +57,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -91,4 +100,25 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.androidx.palette.ktx)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
+    implementation(libs.kotlinx.coroutines.play.services)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.truth)
+}
+
+tasks.withType<Test> {
+    failFast = true
+    timeout.set(Duration.ofMinutes(2))
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
 }

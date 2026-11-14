@@ -1,13 +1,16 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,14 +39,17 @@ fun MoodGridTile(
     modifier: Modifier = Modifier
 ) {
     val baseColor = parseHexColorOrNull(tile.colorHex) ?: MaterialTheme.colorScheme.primary
+    val surfaceBase = MaterialTheme.colorScheme.surfaceContainerHigh
+    val tintWash = lerp(surfaceBase, baseColor, 0.22f)
     val isGenre = sectionTitle.contains("genre", ignoreCase = true)
 
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = baseColor.copy(alpha = 0.24f),
+        color = surfaceBase,
         modifier = modifier
             .height(74.dp)
             .clip(MaterialTheme.shapes.medium)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
             .testTag("mood_tile_${tile.title.lowercase().replace(' ', '_')}")
     ) {
@@ -52,12 +59,19 @@ fun MoodGridTile(
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            baseColor.copy(alpha = 0.36f),
-                            baseColor.copy(alpha = 0.14f)
+                            tintWash,
+                            surfaceBase
                         )
                     )
                 )
         ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .align(Alignment.CenterStart)
+                    .background(baseColor)
+            )
             if (isGenre) {
                 Box(
                     modifier = Modifier
@@ -66,7 +80,7 @@ fun MoodGridTile(
                         .offset(x = 10.dp, y = 10.dp)
                         .rotate(18f)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(baseColor.copy(alpha = 0.55f))
+                        .background(baseColor.copy(alpha = 0.42f))
                 )
             } else {
                 Box(
@@ -75,14 +89,14 @@ fun MoodGridTile(
                         .align(Alignment.BottomEnd)
                         .offset(x = 14.dp, y = 14.dp)
                         .clip(CircleShape)
-                        .background(baseColor.copy(alpha = 0.48f))
+                        .background(baseColor.copy(alpha = 0.38f))
                 ) {
                     Box(
                         modifier = Modifier
                             .size(16.dp)
                             .align(Alignment.Center)
                             .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.35f))
+                            .background(surfaceBase.copy(alpha = 0.72f))
                     )
                 }
             }
@@ -90,7 +104,7 @@ fun MoodGridTile(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(

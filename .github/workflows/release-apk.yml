@@ -36,8 +36,33 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
+      - name: Prepare deterministic signing keystore
+        env:
+          SECRET_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$SECRET_KEYSTORE_B64" ]; then
+            echo "$SECRET_KEYSTORE_B64" | base64 -d > debug.keystore
+          elif [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+          if [ -f debug.keystore ]; then
+            keytool -list -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1|SHA256" || true
+          else
+            echo "Error: debug.keystore missing; APK updates would conflict"
+            exit 1
+          fi
+
       - name: Build installable APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          VER_CODE=$((10 + GITHUB_RUN_NUMBER))
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VER_NAME="${GITHUB_REF_NAME#v}"
+          else
+            VER_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          fi
+          gradle :app:assembleDebug --no-daemon --stacktrace \
+            -PvelunaVersionCode="${VER_CODE}" \
+            -PvelunaVersionName="${VER_NAME}"
 
       - name: Prepare and verify APK asset
         run: |
@@ -49,6 +74,7 @@ jobs:
           fi
           cp "$APK_PATH" dist/veluna-android.apk
           unzip -tqq dist/veluna-android.apk
+          keytool -printcert -jarfile dist/veluna-android.apk | grep -E "SHA1:|SHA256:" || true
           ls -lh dist/veluna-android.apk
 
       - name: Upload APK workflow artifact

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Delete
@@ -28,7 +29,6 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PushPin
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -113,7 +113,7 @@ fun TrackMenuSheet(
             MenuActionRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Play next", "menu_play_next") {
                 onPlayNext(); onDismiss()
             }
-            MenuActionRow(Icons.Rounded.QueueMusic, "Add to queue", "menu_add_queue") {
+            MenuActionRow(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue", "menu_add_queue") {
                 onAddToQueue(); onDismiss()
             }
             if (!song.isLocal) {

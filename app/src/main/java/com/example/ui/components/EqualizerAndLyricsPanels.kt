@@ -246,16 +246,16 @@ fun SyncedLyricsPanel(
                                 .padding(vertical = 4.dp, horizontal = 6.dp)
                                 .alpha(
                                     when {
-                                        !data.synced -> 0.94f
+                                        !data.synced -> 0.96f
                                         isActive -> 1f
-                                        isPast -> 0.45f
-                                        else -> 0.65f
+                                        isPast -> 0.62f
+                                        else -> 0.80f
                                     }
                                 )
                         ) {
                             if (isActive && line.words.isNotEmpty()) {
                                 val primaryColor = MaterialTheme.colorScheme.primary
-                                val upcomingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                                val upcomingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                                 val annotated = buildAnnotatedString {
                                     line.words.forEachIndexed { wIdx, w ->
                                         if (wIdx > 0) append(" ")

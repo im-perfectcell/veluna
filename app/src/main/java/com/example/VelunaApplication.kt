@@ -1,6 +1,8 @@
 package com.example
 
 import android.app.Application
+import com.example.data.cloud.CloudSyncCoordinator
+import com.example.data.cloud.CloudSyncRepository
 import com.example.data.local.UserPrefsRepository
 import com.example.data.local.VelunaDatabase
 import com.example.data.network.InnerTubeClient
@@ -27,6 +29,14 @@ class VelunaAppContainer(application: Application) {
         dao = dao,
         prefsRepo = prefsRepository,
         innerTube = innerTubeClient
+    )
+    val cloudSyncRepository: CloudSyncRepository = CloudSyncRepository(application)
+    val cloudSyncCoordinator: CloudSyncCoordinator = CloudSyncCoordinator(
+        context = application,
+        dao = dao,
+        prefsRepo = prefsRepository,
+        repository = repository,
+        cloudRepo = cloudSyncRepository
     )
     val playerController: PlayerController = PlayerController(
         context = application,

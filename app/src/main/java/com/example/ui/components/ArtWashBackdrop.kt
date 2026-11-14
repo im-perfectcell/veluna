@@ -26,9 +26,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.runtime.remember
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.R
+import com.example.data.network.InnerTubeParsers
 import com.example.model.LIKED_MUSIC_ID
 import com.example.model.ON_REPEAT_ID
 
@@ -98,7 +100,9 @@ fun VelunaArtwork(
     specialId: String? = null,
     isCircle: Boolean = false
 ) {
+    val context = LocalContext.current
     val effectiveShape = if (isCircle) CircleShape else shape
+    val resolvedUrl = remember(url) { InnerTubeParsers.upgradeThumbnailUrl(url, 720) }
     Box(
         modifier = modifier
             .clip(effectiveShape)
@@ -151,9 +155,13 @@ fun VelunaArtwork(
                     )
                 }
             }
-            !url.isNullOrBlank() -> {
+            !resolvedUrl.isNullOrBlank() -> {
                 AsyncImage(
-                    model = url,
+                    model = ImageRequest.Builder(context)
+                        .data(resolvedUrl)
+                        .crossfade(true)
+                        .allowHardware(true)
+                        .build(),
                     contentDescription = contentDescription,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

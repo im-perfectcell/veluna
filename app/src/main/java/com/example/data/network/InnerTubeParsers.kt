@@ -62,10 +62,30 @@ object InnerTubeParsers {
     private fun JsonElement?.objOrNull(): JsonObject? = this as? JsonObject
     private fun JsonElement?.arrOrNull(): JsonArray? = this as? JsonArray
 
+    fun upgradeThumbnailUrl(url: String?, targetPx: Int = 720): String? {
+        if (url.isNullOrBlank()) return url
+        val normalized = if (url.startsWith("//")) "https:$url" else url
+        if ("googleusercontent.com" in normalized || "ggpht.com" in normalized) {
+            return when {
+                Regex("""=w\d+-h\d+[^?#]*""").containsMatchIn(normalized) ->
+                    normalized.replace(Regex("""=w\d+-h\d+[^?#]*"""), "=w$targetPx-h$targetPx-l95-rj")
+                Regex("""=s\d+[^?#]*""").containsMatchIn(normalized) ->
+                    normalized.replace(Regex("""=s\d+[^?#]*"""), "=s$targetPx-c-k-c0x00ffffff-no-rj")
+                else -> normalized
+            }
+        }
+        if ("ytimg.com/vi/" in normalized) {
+            return normalized
+                .replace("/default.jpg", "/hqdefault.jpg")
+                .replace("/mqdefault.jpg", "/hqdefault.jpg")
+        }
+        return normalized
+    }
+
     private fun lastThumbnail(node: JsonElement?): String? {
         val thumbnails = findAll(node, "thumbnails").firstOrNull()?.arrOrNull() ?: return null
         val raw = thumbnails.lastOrNull()?.objOrNull()?.get("url")?.strOrNull() ?: return null
-        return if (raw.startsWith("//")) "https:$raw" else raw
+        return upgradeThumbnailUrl(raw)
     }
 
     private fun isExplicit(node: JsonElement?): Boolean =
@@ -651,7 +671,7 @@ object InnerTubeParsers {
             val toolbar = payload["toolbar"]?.objOrNull()
             val text = props["content"]?.objOrNull()?.get("content")?.strOrNull() ?: return@mapNotNull null
             val authorName = authorObj?.get("displayName")?.strOrNull() ?: "Listener"
-            val avatar = authorObj?.get("avatarThumbnailUrl")?.strOrNull()
+            val avatar = upgradeThumbnailUrl(authorObj?.get("avatarThumbnailUrl")?.strOrNull(), targetPx = 160)
             val published = props["publishedTimeText"]?.strOrNull().orEmpty()
             val likes = toolbar?.get("likeCountNotliked")?.strOrNull()?.takeIf { it != "0" }
             val replies = toolbar?.get("replyCount")?.strOrNull()?.takeIf { it != "0" }

@@ -41,16 +41,22 @@ jobs:
           SECRET_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$SECRET_KEYSTORE_B64" ]; then
-            echo "$SECRET_KEYSTORE_B64" | base64 -d > debug.keystore
+            echo "Using ANDROID_KEYSTORE_BASE64 secret..."
+            printf '%s' "$SECRET_KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > debug.keystore
+          elif [ -f debug.keystore ]; then
+            echo "Using checked-in debug.keystore..."
           elif [ -f debug.keystore.base64 ]; then
-            base64 -d debug.keystore.base64 > debug.keystore
-          fi
-          if [ -f debug.keystore ]; then
-            keytool -list -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1|SHA256" || true
+            echo "Decoding checked-in debug.keystore.base64..."
+            tr -d '[:space:]' < debug.keystore.base64 | base64 -d > debug.keystore
           else
-            echo "Error: debug.keystore missing; APK updates would conflict"
+            echo "SECRET_KEYSTORE_B64 is empty and debug.keystore.base64 not in checkout; restoring deterministic project debug.keystore..."
+            printf '%s' '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' | base64 -d > debug.keystore
+          fi
+          if [ ! -s debug.keystore ]; then
+            echo "Error: failed to materialize debug.keystore"
             exit 1
           fi
+          keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1:|SHA256:" || true
 
       - name: Build installable APK
         run: |
